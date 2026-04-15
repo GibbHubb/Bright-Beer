@@ -6,11 +6,12 @@ import type { VenueWithStatus } from '../lib/venueStatus';
 import { statusColor } from '../lib/venueStatus';
 import { AMSTERDAM_CENTER, DEFAULT_ZOOM, BASEMAP_STYLE } from '../constants/amsterdam';
 
-const SHADOW_SOURCE  = 'shadows';
-const SHADOW_LAYER   = 'shadow-fill';
-const VENUE_SOURCE   = 'venues';
-const VENUE_LAYER    = 'venue-circles';
-const VENUE_LAYER_HL = 'venue-circles-hl';
+const SHADOW_SOURCE   = 'shadows';
+const SHADOW_LAYER    = 'shadow-fill';
+const VENUE_SOURCE    = 'venues';
+const VENUE_LAYER     = 'venue-circles';
+const VENUE_PULSE     = 'venue-circles-pulse';
+const VENUE_LAYER_HL  = 'venue-circles-hl';
 
 interface Props {
   venues:    VenueWithStatus[];
@@ -56,6 +57,21 @@ export default function Map({ venues, shadows, onVenueClick, onBoundsChange }: P
 
       // Venue circles
       map.addSource(VENUE_SOURCE, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+
+      // Pulse halo for sunny venues — opacity animated via rAF below
+      map.addLayer({
+        id:     VENUE_PULSE,
+        type:   'circle',
+        source: VENUE_SOURCE,
+        filter: ['==', ['get', 'status'], 'sunny'],
+        paint: {
+          'circle-radius':  ['interpolate', ['linear'], ['zoom'], 12, 10, 16, 18],
+          'circle-color':   '#FFD700',
+          'circle-opacity': 0,
+          'circle-blur':    1,
+        },
+      });
+
       map.addLayer({
         id:     VENUE_LAYER,
         type:   'circle',
@@ -68,6 +84,19 @@ export default function Map({ venues, shadows, onVenueClick, onBoundsChange }: P
           'circle-opacity': 0.9,
         },
       });
+
+      // Animate the pulse halo
+      let rafId: number;
+      const animate = () => {
+        const t = (Date.now() % 2000) / 2000;
+        const opacity = Math.sin(t * Math.PI) * 0.45;
+        if (map.getLayer(VENUE_PULSE)) {
+          map.setPaintProperty(VENUE_PULSE, 'circle-opacity', opacity);
+        }
+        rafId = requestAnimationFrame(animate);
+      };
+      rafId = requestAnimationFrame(animate);
+      map.once('remove', () => cancelAnimationFrame(rafId));
 
       // Highlight ring on hover
       map.addLayer({

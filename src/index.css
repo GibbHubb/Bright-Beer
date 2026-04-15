@@ -88,3 +88,29 @@ html, body, #root {
   padding: 6px 12px;
   z-index: 10;
 }
+
+.status-pill {
+  font-size: 11px;
+  color: #9ca3af;
+  padding: 4px 0 2px;
+}
+.status-pill--error { color: #f87171; }
+
+/* ── Mobile overrides ────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .header-title { font-size: 14px; }
+
+  .slider-overlay {
+    bottom: 16px;
+    width: calc(100vw - 24px);
+    padding: 8px 12px 12px;
+    border-radius: 10px;
+  }
+
+  .filter-overlay {
+    top: 8px;
+    left: 8px;
+    width: calc(100vw - 16px);
+    border-radius: 10px;
+  }
+}

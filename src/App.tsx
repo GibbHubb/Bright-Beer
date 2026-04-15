@@ -35,9 +35,9 @@ export default function App() {
     return new Date(y, m - 1, d, Math.floor(minutes / 60), minutes % 60);
   }, [dateStr, minutes]);
 
-  const sunPosition         = useSunPosition(date);
-  const { venues: rawVenues } = useVenues();
-  const buildings           = useBuildingTiles(bounds);
+  const sunPosition                         = useSunPosition(date);
+  const { venues: rawVenues, loading, error } = useVenues();
+  const buildings                           = useBuildingTiles(bounds);
   const shadows             = useShadows(buildings, sunPosition);
 
   const venues: VenueWithStatus[] = useMemo(
@@ -87,6 +87,8 @@ export default function App() {
             sunnyOnly={sunnyOnly}
             onToggle={() => setSunnyOnly(o => !o)}
           />
+          {loading && <div className="status-pill">Loading venues…</div>}
+          {error   && <div className="status-pill status-pill--error">⚠ {error}</div>}
         </div>
 
         {selected && (
