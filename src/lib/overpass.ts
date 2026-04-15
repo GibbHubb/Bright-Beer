@@ -1,13 +1,16 @@
 import { AMSTERDAM_BBOX } from '../constants/amsterdam';
 
 export interface Venue {
-  id: string;
-  name: string;
-  lat: number;
-  lng: number;
-  address?: string;
+  id:           string;
+  name:         string;
+  lat:          number;
+  lng:          number;
+  address?:     string;
   openingHours?: string;
-  amenity?: string;
+  amenity?:     string;
+  craft?:       string;
+  capacity?:    number;
+  terraceCapacity?: number;
 }
 
 const OVERPASS_ENDPOINTS = [
@@ -15,8 +18,8 @@ const OVERPASS_ENDPOINTS = [
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.openstreetmap.fr/api/interpreter',
 ];
-const CACHE_KEY    = 'bright-beer-venues-v1';
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const CACHE_KEY    = 'bright-beer-venues-v2'; // bumped — new fields
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 const QUERY = `
 [out:json][timeout:60][bbox:${AMSTERDAM_BBOX}];
@@ -26,6 +29,12 @@ const QUERY = `
 );
 out center tags;
 `.trim();
+
+function parseCapacity(val: string | undefined): number | undefined {
+  if (!val) return undefined;
+  const n = parseInt(val, 10);
+  return isNaN(n) ? undefined : n;
+}
 
 function parseElement(el: Record<string, unknown>): Venue | null {
   const tags = (el.tags as Record<string, string>) || {};
@@ -43,18 +52,18 @@ function parseElement(el: Record<string, unknown>): Venue | null {
   const address = street ? `${street}${housenr ? ' ' + housenr : ''}` : undefined;
 
   return {
-    id:           String(el.id),
-    name:         tags['name'] || tags['amenity'] || 'Terrace',
-    lat,
-    lng,
-    address,
-    openingHours: tags['opening_hours'],
-    amenity:      tags['amenity'],
+    id:               String(el.id),
+    name:             tags['name'] || tags['amenity'] || 'Terrace',
+    lat, lng, address,
+    openingHours:     tags['opening_hours'],
+    amenity:          tags['amenity'],
+    craft:            tags['craft'],
+    capacity:         parseCapacity(tags['capacity']),
+    terraceCapacity:  parseCapacity(tags['outdoor_seating:capacity']),
   };
 }
 
 export async function fetchVenues(): Promise<Venue[]> {
-  // Try cache
   try {
     const raw = localStorage.getItem(CACHE_KEY);
     if (raw) {
@@ -77,7 +86,8 @@ export async function fetchVenues(): Promise<Venue[]> {
     } catch (_) { /* try next */ }
   }
   if (!json) throw new Error('All Overpass endpoints failed');
-  const venues: Venue[] = (json.elements)
+
+  const venues: Venue[] = json.elements
     .map(parseElement)
     .filter((v): v is Venue => v !== null);
 

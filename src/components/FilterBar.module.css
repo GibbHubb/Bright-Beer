@@ -1,8 +1,14 @@
 .bar {
   display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0 4px;
+}
+
+.top {
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 0;
 }
 
 .count { font-size: 13px; }
@@ -19,11 +25,34 @@
   cursor: pointer;
   transition: all 0.15s;
 }
-
 .toggle.active {
   background: rgba(255,215,0,0.12);
   border-color: #FFD700;
   color: #FFD700;
 }
-
 .toggle:hover { border-color: #FFD700; color: #FFD700; }
+
+/* Filter chips */
+.chips {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 14px;
+  color: #9ca3af;
+  font-size: 11px;
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.chip.active {
+  background: rgba(255,215,0,0.12);
+  border-color: #FFD700;
+  color: #FFD700;
+}
+.chip:hover { border-color: #9ca3af; color: #e5e7eb; }

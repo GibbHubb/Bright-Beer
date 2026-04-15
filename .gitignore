@@ -12,8 +12,8 @@ dist
 dist-ssr
 *.local
 
-# Building data is committed directly (run scripts/fetch_buildings.py to refresh)
-# public/buildings/amsterdam_buildings.geojson
+# Monolithic file replaced by tiles — run scripts/split_buildings.py to regenerate tiles
+public/buildings/amsterdam_buildings.geojson
 
 # Editor directories and files
 .vscode/*

@@ -5,7 +5,8 @@ import type { SunPosition } from '../lib/sunCalc';
 
 const EMPTY: FeatureCollection<Polygon> = { type: 'FeatureCollection', features: [] };
 
-const MIN_SHADOW_ZOOM = 13; // don't compute shadows below this zoom
+const MIN_SHADOW_ZOOM  = 13;  // don't compute shadows below this zoom
+const MAX_SHADOW_BUILDINGS = 400; // tallest buildings dominate; cap for worker speed
 
 export function useShadows(
   buildings: Feature<Polygon>[],
@@ -34,10 +35,17 @@ export function useShadows(
       setShadows(EMPTY);
       return;
     }
+    // Sort by height desc, keep top N — tall buildings cast the longest shadows
+    const capped = buildings.length > MAX_SHADOW_BUILDINGS
+      ? [...buildings].sort((a, b) =>
+          ((b.properties?.h as number) || 0) - ((a.properties?.h as number) || 0)
+        ).slice(0, MAX_SHADOW_BUILDINGS)
+      : buildings;
+
     workerRef.current.postMessage({
-      buildings,
-      azimuth:  sun.azimuth,
-      altitude: sun.altitude,
+      buildings: capped,
+      azimuth:   sun.azimuth,
+      altitude:  sun.altitude,
     });
   }, [buildings, sun.azimuth, sun.altitude, sun.isAboveHorizon, zoom]);
 
