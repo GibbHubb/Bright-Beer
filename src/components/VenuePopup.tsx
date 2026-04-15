@@ -1,4 +1,3 @@
-import React from 'react';
 import type { VenueWithStatus } from '../lib/venueStatus';
 import type { FeatureCollection, Polygon } from 'geojson';
 import SunnyWindowBar from './SunnyWindowBar';

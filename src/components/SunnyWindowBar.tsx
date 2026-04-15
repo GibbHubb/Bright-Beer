@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { getSunPosition } from '../lib/sunCalc';
 import { classifyVenues } from '../lib/venueStatus';
 import type { Venue } from '../lib/overpass';

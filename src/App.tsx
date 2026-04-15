@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import Map from './components/Map';
 import TimeSlider from './components/TimeSlider';
 import DatePicker from './components/DatePicker';
@@ -10,8 +10,9 @@ import { useShadows } from './hooks/useShadows';
 import { useBuildingTiles } from './hooks/useBuildingTiles';
 import { classifyVenues } from './lib/venueStatus';
 import type { VenueWithStatus } from './lib/venueStatus';
-
 import './index.css';
+
+type Bounds = { north: number; south: number; east: number; west: number };
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -27,19 +28,17 @@ export default function App() {
   const [minutes,   setMinutes]   = useState(nowMinutes);
   const [sunnyOnly, setSunnyOnly] = useState(false);
   const [selected,  setSelected]  = useState<VenueWithStatus | null>(null);
-  const [bounds,    setBounds]    = useState<{ north: number; south: number; east: number; west: number } | null>(null);
+  const [bounds,    setBounds]    = useState<Bounds | null>(null);
 
-  // Derive a Date from dateStr + minutes
   const date = useMemo(() => {
     const [y, m, d] = dateStr.split('-').map(Number);
-    const dt = new Date(y, m - 1, d, Math.floor(minutes / 60), minutes % 60);
-    return dt;
+    return new Date(y, m - 1, d, Math.floor(minutes / 60), minutes % 60);
   }, [dateStr, minutes]);
 
-  const sunPosition  = useSunPosition(date);
-  const rawVenues    = useVenues();
-  const buildings    = useBuildingTiles(bounds);
-  const shadows      = useShadows(buildings, sunPosition);
+  const sunPosition         = useSunPosition(date);
+  const { venues: rawVenues } = useVenues();
+  const buildings           = useBuildingTiles(bounds);
+  const shadows             = useShadows(buildings, sunPosition);
 
   const venues: VenueWithStatus[] = useMemo(
     () => classifyVenues(rawVenues, shadows, sunPosition.isAboveHorizon),
@@ -55,22 +54,20 @@ export default function App() {
 
   const handleVenueClick = useCallback((v: VenueWithStatus) => setSelected(v), []);
   const handleClose      = useCallback(() => setSelected(null), []);
-  const handleBounds     = useCallback((b: MapBounds) => setBounds(b), []);
+  const handleBounds     = useCallback((b: Bounds) => setBounds(b), []);
 
   return (
     <div className="layout">
-      {/* Header */}
       <header className="header">
         <div className="header-brand">
           <span className="header-sun">☀️</span>
           <span className="header-title">Sunny Amsterdam</span>
         </div>
         <div className="header-controls">
-          <DatePicker value={dateStr} onChange={setDateStr} />
+          <DatePicker date={dateStr} onChange={setDateStr} />
         </div>
       </header>
 
-      {/* Map fills the rest */}
       <div className="map-wrap">
         <Map
           venues={filteredVenues}
@@ -79,12 +76,10 @@ export default function App() {
           onBoundsChange={handleBounds}
         />
 
-        {/* Time slider overlay */}
         <div className="slider-overlay">
-          <TimeSlider value={minutes} onChange={setMinutes} />
+          <TimeSlider minutes={minutes} onChange={setMinutes} />
         </div>
 
-        {/* Filter bar overlay */}
         <div className="filter-overlay">
           <FilterBar
             sunnyCount={sunnyCount}
@@ -94,7 +89,6 @@ export default function App() {
           />
         </div>
 
-        {/* Venue popup */}
         {selected && (
           <VenuePopup
             venue={selected}
