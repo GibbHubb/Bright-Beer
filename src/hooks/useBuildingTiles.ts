@@ -53,13 +53,15 @@ async function loadTile(row: number, col: number): Promise<Feature<Polygon>[]> {
   }
 }
 
-export function useBuildingTiles(bounds: MapBounds | null): Feature<Polygon>[] {
+const MIN_TILE_ZOOM = 13; // no shadows below this zoom → skip tile load entirely
+
+export function useBuildingTiles(bounds: MapBounds | null, zoom = 14): Feature<Polygon>[] {
   const [buildings, setBuildings] = useState<Feature<Polygon>[]>([]);
   // Track which tile keys are currently loaded so we only re-fetch on tile change
   const loadedKeys = useRef<string>('');
 
   useEffect(() => {
-    if (!bounds) return;
+    if (!bounds || zoom < MIN_TILE_ZOOM) { setBuildings([]); return; }
 
     const tiles = overlappingTiles(bounds);
     const key = tiles.map(([r, c]) => `${r}_${c}`).sort().join(',');

@@ -38,6 +38,15 @@ jobs:
             echo "Tiles already present ($TILE_COUNT files), skipping."
           fi
 
+      - name: Bake venue data (skip if already committed)
+        run: |
+          if [ ! -f public/venues.json ]; then
+            pip install requests 2>/dev/null || true
+            python scripts/fetch_venues.py || echo "Venue fetch failed — app will use live Overpass"
+          else
+            echo "venues.json already present, skipping."
+          fi
+
       - name: Build
         run: npm run build
 

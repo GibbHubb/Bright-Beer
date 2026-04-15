@@ -47,7 +47,7 @@ export default function App() {
 
   const sunPosition                         = useSunPosition(date);
   const { venues: rawVenues, loading, error } = useVenues();
-  const buildings                           = useBuildingTiles(bounds);
+  const buildings                           = useBuildingTiles(bounds, zoom);
   const shadows                             = useShadows(buildings, sunPosition, zoom);
 
   // Classify all venues, cap to 250 closest to map centre
