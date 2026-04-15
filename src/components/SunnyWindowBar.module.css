@@ -1,0 +1,32 @@
+.wrap { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; }
+
+.label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.hours { color: #FFD700; font-weight: 700; }
+
+.bar {
+  display: flex;
+  height: 14px;
+  border-radius: 3px;
+  overflow: hidden;
+  gap: 1px;
+}
+
+.slot { flex: 1; border-radius: 1px; transition: background 0.1s; }
+
+.axis {
+  position: relative;
+  height: 14px;
+}
+
+.axis span {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 9px;
+  color: #4b5563;
+}
