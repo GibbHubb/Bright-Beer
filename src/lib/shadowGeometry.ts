@@ -25,12 +25,16 @@ export function projectShadow(
   // Resolve building height
   const props = building.properties || {};
   let height: number = DEFAULT_BUILDING_HEIGHT_M;
-  if (props['height']) {
+  // Slimmed GeoJSON uses "h"; raw OSM fallbacks kept for dev use
+  if (props['h']) {
+    const h = parseFloat(String(props['h']));
+    if (!isNaN(h)) height = h;
+  } else if (props['height']) {
     const h = parseFloat(String(props['height']));
     if (!isNaN(h)) height = h;
   } else if (props['building:levels']) {
     const lvls = parseFloat(String(props['building:levels']));
-    if (!isNaN(lvls)) height = lvls * 3.2; // ~3.2m per floor
+    if (!isNaN(lvls)) height = lvls * 3.2;
   }
 
   // Shadow length in metres

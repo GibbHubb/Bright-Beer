@@ -15,14 +15,17 @@ The output file is consumed by src/hooks/useBuildingTiles.ts at runtime.
 """
 
 import json
-import math
 import time
 import requests
 
 # Amsterdam rough bounding box (south, west, north, east)
 BBOX = "52.33,4.82,52.42,5.00"
 
-OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+OVERPASS_ENDPOINTS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.openstreetmap.fr/api/interpreter",
+]
 
 QUERY = f"""
 [out:json][timeout:120];
@@ -77,12 +80,17 @@ def way_to_polygon(geometry: list) -> list[list[float]] | None:
 
 
 def fetch() -> list[dict]:
-    print("Querying Overpass API …")
-    resp = requests.post(OVERPASS_URL, data={"data": QUERY}, timeout=180)
-    resp.raise_for_status()
-    elements = resp.json()["elements"]
-    print(f"  → {len(elements)} elements received")
-    return elements
+    for url in OVERPASS_ENDPOINTS:
+        print(f"Querying {url} …")
+        try:
+            resp = requests.post(url, data={"data": QUERY}, timeout=180)
+            resp.raise_for_status()
+            elements = resp.json()["elements"]
+            print(f"  -> {len(elements)} elements received")
+            return elements
+        except Exception as e:
+            print(f"  ! failed ({e}), trying next endpoint …")
+    raise RuntimeError("All Overpass endpoints failed")
 
 
 def build_geojson(elements: list[dict]) -> dict:
@@ -140,7 +148,7 @@ def build_geojson(elements: list[dict]) -> dict:
                     },
                 })
 
-    print(f"  → {len(features)} features written, {skipped} skipped (too short / no geometry)")
+    print(f"  -> {len(features)} features written, {skipped} skipped (too short / no geometry)")
     return {"type": "FeatureCollection", "features": features}
 
 
@@ -153,4 +161,4 @@ if __name__ == "__main__":
         json.dump(geojson, f, separators=(",", ":"))
 
     size_mb = len(json.dumps(geojson).encode()) / 1_048_576
-    print(f"  → Wrote {OUT_FILE}  ({size_mb:.1f} MB)  in {time.time()-t0:.1f}s")
+    print(f"  -> Wrote {OUT_FILE}  ({size_mb:.1f} MB)  in {time.time()-t0:.1f}s")
