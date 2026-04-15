@@ -13,8 +13,13 @@ The app falls back to live Overpass if the file is absent.
 
 import json, time, requests
 
-BBOX = "52.28,4.72,52.43,5.10"
-OUT  = "public/venues.json"
+# Focused on Amsterdam core where ~95% of terraces are
+# Large bbox times out on all public mirrors; split into 2 sub-queries
+BBOXES = [
+    "52.34,4.84,52.40,4.94",   # centre + Jordaan + De Pijp
+    "52.37,4.92,52.43,5.02",   # East (Oost, Plantage, Watergraafsmeer)
+]
+OUT = "public/venues.json"
 
 ENDPOINTS = [
     "https://overpass-api.de/api/interpreter",
@@ -23,25 +28,39 @@ ENDPOINTS = [
     "https://overpass.private.coffee/api/interpreter",
 ]
 
-QUERY = f"""
-[out:json][timeout:60][bbox:{BBOX}];
-(
-  node["amenity"~"bar|pub|restaurant|cafe"]["outdoor_seating"="yes"];
-  way["amenity"~"bar|pub|restaurant|cafe"]["outdoor_seating"="yes"];
-);
-out center tags;
-""".strip()
+def make_query(bbox: str) -> str:
+    return (
+        f"[out:json][timeout:30][bbox:{bbox}];"
+        "(node[\"amenity\"~\"bar|pub|restaurant|cafe\"][\"outdoor_seating\"=\"yes\"];"
+        "way[\"amenity\"~\"bar|pub|restaurant|cafe\"][\"outdoor_seating\"=\"yes\"];);"
+        "out center tags;"
+    )
+
+def fetch_bbox(bbox: str) -> list:
+    query = make_query(bbox)
+    for url in ENDPOINTS:
+        try:
+            # GET works better than POST on most mirrors for small queries
+            r = requests.get(url, params={"data": query}, timeout=40)
+            r.raise_for_status()
+            elements = r.json()["elements"]
+            print(f"    [{bbox}] -> {len(elements)} elements via {url.split('/')[2]}")
+            return elements
+        except Exception as e:
+            print(f"    [{bbox}] ! {url.split('/')[2]}: {e}")
+    return []
 
 def fetch_elements():
-    for url in ENDPOINTS:
-        print(f"  Trying {url} ...")
-        try:
-            r = requests.post(url, data={"data": QUERY}, timeout=90)
-            r.raise_for_status()
-            return r.json()["elements"]
-        except Exception as e:
-            print(f"  ! {e}")
-    raise RuntimeError("All endpoints failed")
+    all_elements: list = []
+    seen_ids: set = set()
+    for bbox in BBOXES:
+        for el in fetch_bbox(bbox):
+            if el["id"] not in seen_ids:
+                seen_ids.add(el["id"])
+                all_elements.append(el)
+    if not all_elements:
+        raise RuntimeError("No venues fetched from any endpoint")
+    return all_elements
 
 def parse(el):
     tags = el.get("tags", {})
