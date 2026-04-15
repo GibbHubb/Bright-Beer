@@ -10,6 +10,6 @@ export const AMSTERDAM_BOUNDS: [number, number, number, number] = [4.72, 52.28, 
 
 export const DEFAULT_BUILDING_HEIGHT_M = 10;
 
-// Stadia Maps free dark basemap — no API key required
+// CARTO dark-matter basemap — free, no API key required
 export const BASEMAP_STYLE =
-  'https://tiles.stadiamaps.com/styles/alidade_smooth_dark.json';
+  'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';

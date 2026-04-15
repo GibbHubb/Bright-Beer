@@ -10,7 +10,11 @@ export interface Venue {
   amenity?: string;
 }
 
-const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.openstreetmap.fr/api/interpreter',
+];
 const CACHE_KEY    = 'bright-beer-venues-v1';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -59,13 +63,21 @@ export async function fetchVenues(): Promise<Venue[]> {
     }
   } catch (_) {}
 
-  const res  = await fetch(OVERPASS_URL, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body:    `data=${encodeURIComponent(QUERY)}`,
-  });
-  const json = await res.json();
-  const venues: Venue[] = (json.elements as Record<string, unknown>[])
+  let json: { elements: Record<string, unknown>[] } | null = null;
+  for (const url of OVERPASS_ENDPOINTS) {
+    try {
+      const res = await fetch(url, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body:    `data=${encodeURIComponent(QUERY)}`,
+      });
+      if (!res.ok) continue;
+      json = await res.json();
+      break;
+    } catch (_) { /* try next */ }
+  }
+  if (!json) throw new Error('All Overpass endpoints failed');
+  const venues: Venue[] = (json.elements)
     .map(parseElement)
     .filter((v): v is Venue => v !== null);
 

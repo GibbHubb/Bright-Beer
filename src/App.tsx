@@ -95,7 +95,7 @@ export default function App() {
           <VenuePopup
             venue={selected}
             dateStr={dateStr}
-            shadows={shadows}
+            buildings={buildings}
             onClose={handleClose}
           />
         )}
