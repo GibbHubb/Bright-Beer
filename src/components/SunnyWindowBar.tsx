@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useDeferredValue } from 'react';
 import { getSunPosition } from '../lib/sunCalc';
 import { projectShadow } from '../lib/shadowGeometry';
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
@@ -47,10 +47,13 @@ function computeSlotStatus(
 }
 
 export default function SunnyWindowBar({ venue, dateStr, buildings }: Props) {
+  // Defer heavy computation so popup opens immediately; bar fills in shortly after
+  const deferredBuildings = useDeferredValue(buildings);
+
   const nearby = useMemo(
-    () => nearbyBuildings(venue, buildings),
+    () => nearbyBuildings(venue, deferredBuildings),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [venue.id, buildings],
+    [venue.id, deferredBuildings],
   );
 
   const slots: Slot[] = useMemo(() => {
