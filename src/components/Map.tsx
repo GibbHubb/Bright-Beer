@@ -17,7 +17,7 @@ interface Props {
   venues:    VenueWithStatus[];
   shadows:   FeatureCollection<Polygon>;
   onVenueClick: (v: VenueWithStatus) => void;
-  onBoundsChange: (bounds: { north: number; south: number; east: number; west: number }) => void;
+  onBoundsChange: (bounds: { north: number; south: number; east: number; west: number }, zoom: number) => void;
 }
 
 export default function Map({ venues, shadows, onVenueClick, onBoundsChange }: Props) {
@@ -112,14 +112,14 @@ export default function Map({ venues, shadows, onVenueClick, onBoundsChange }: P
         },
       });
 
-      // Emit initial bounds
+      // Emit initial bounds + zoom
       const b = map.getBounds();
-      onBoundsChange({ north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() });
+      onBoundsChange({ north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() }, map.getZoom());
     });
 
     map.on('moveend', () => {
       const b = map.getBounds();
-      onBoundsChange({ north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() });
+      onBoundsChange({ north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() }, map.getZoom());
     });
 
     // Click handler

@@ -5,9 +5,12 @@ import type { SunPosition } from '../lib/sunCalc';
 
 const EMPTY: FeatureCollection<Polygon> = { type: 'FeatureCollection', features: [] };
 
+const MIN_SHADOW_ZOOM = 13; // don't compute shadows below this zoom
+
 export function useShadows(
   buildings: Feature<Polygon>[],
   sun: SunPosition,
+  zoom?: number,
 ): FeatureCollection<Polygon> {
   const [shadows, setShadows] = useState<FeatureCollection<Polygon>>(EMPTY);
   const workerRef  = useRef<Worker | null>(null);
@@ -26,7 +29,8 @@ export function useShadows(
   }, []);
 
   const compute = useCallback(() => {
-    if (!workerRef.current || !sun.isAboveHorizon || !buildings.length) {
+    if (!workerRef.current || !sun.isAboveHorizon || !buildings.length
+        || (zoom !== undefined && zoom < MIN_SHADOW_ZOOM)) {
       setShadows(EMPTY);
       return;
     }
@@ -35,7 +39,7 @@ export function useShadows(
       azimuth:  sun.azimuth,
       altitude: sun.altitude,
     });
-  }, [buildings, sun.azimuth, sun.altitude, sun.isAboveHorizon]);
+  }, [buildings, sun.azimuth, sun.altitude, sun.isAboveHorizon, zoom]);
 
   // Debounce 100ms so slider drags don't flood the worker
   useEffect(() => {

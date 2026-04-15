@@ -29,6 +29,7 @@ export default function App() {
   const [sunnyOnly, setSunnyOnly] = useState(false);
   const [selected,  setSelected]  = useState<VenueWithStatus | null>(null);
   const [bounds,    setBounds]    = useState<Bounds | null>(null);
+  const [zoom,      setZoom]      = useState(14);
 
   const date = useMemo(() => {
     const [y, m, d] = dateStr.split('-').map(Number);
@@ -38,7 +39,7 @@ export default function App() {
   const sunPosition                         = useSunPosition(date);
   const { venues: rawVenues, loading, error } = useVenues();
   const buildings                           = useBuildingTiles(bounds);
-  const shadows             = useShadows(buildings, sunPosition);
+  const shadows             = useShadows(buildings, sunPosition, zoom);
 
   const venues: VenueWithStatus[] = useMemo(
     () => classifyVenues(rawVenues, shadows, sunPosition.isAboveHorizon),
@@ -54,7 +55,7 @@ export default function App() {
 
   const handleVenueClick = useCallback((v: VenueWithStatus) => setSelected(v), []);
   const handleClose      = useCallback(() => setSelected(null), []);
-  const handleBounds     = useCallback((b: Bounds) => setBounds(b), []);
+  const handleBounds     = useCallback((b: Bounds, z: number) => { setBounds(b); setZoom(z); }, []);
 
   return (
     <div className="layout">
