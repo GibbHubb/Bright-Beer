@@ -12,8 +12,8 @@ dist
 dist-ssr
 *.local
 
-# Building data (large file, fetch with scripts/fetch_buildings.py)
-public/buildings/amsterdam_buildings.geojson
+# Building data is committed directly (run scripts/fetch_buildings.py to refresh)
+# public/buildings/amsterdam_buildings.geojson
 
 # Editor directories and files
 .vscode/*

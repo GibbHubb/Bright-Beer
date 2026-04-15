@@ -28,10 +28,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Fetch Amsterdam buildings
+      - name: Fetch Amsterdam buildings (skip if already committed)
         run: |
-          pip install requests
-          python scripts/fetch_buildings.py
+          if [ ! -f public/buildings/amsterdam_buildings.geojson ]; then
+            pip install requests
+            python scripts/fetch_buildings.py
+          else
+            echo "Buildings file already present, skipping fetch."
+          fi
 
       - name: Build
         run: npm run build
