@@ -56,3 +56,22 @@
   color: #FFD700;
 }
 .chip:hover { border-color: #9ca3af; color: #e5e7eb; }
+
+/* Top right group */
+.topRight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Weather badge */
+.weatherBadge {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.weather_clear  { background: rgba(34,197,94,0.15);  color: #22c55e; }
+.weather_cloudy { background: rgba(245,158,11,0.15); color: #f59e0b; }
+.weather_rain   { background: rgba(96,165,250,0.15); color: #60a5fa; }

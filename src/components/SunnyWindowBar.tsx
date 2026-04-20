@@ -1,10 +1,8 @@
 import { useMemo, useDeferredValue } from 'react';
-import { getSunPosition } from '../lib/sunCalc';
-import { projectShadow } from '../lib/shadowGeometry';
-import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
-import { point } from '@turf/helpers';
 import type { Feature, Polygon } from 'geojson';
 import type { Venue } from '../lib/overpass';
+import { nearbyBuildings, computeSlotStatus } from '../lib/windowSlots';
+import type { Slot } from '../lib/windowSlots';
 import styles from './SunnyWindowBar.module.css';
 
 interface Props {
@@ -13,38 +11,7 @@ interface Props {
   buildings: Feature<Polygon>[]; // viewport buildings from useBuildingTiles
 }
 
-const SLOTS       = 48;   // every 30 minutes
-const NEARBY_DEG  = 0.004; // ~400m bbox around venue
-
-/** Filter buildings to only those within ±NEARBY_DEG of the venue (fast pre-filter). */
-function nearbyBuildings(venue: Venue, all: Feature<Polygon>[]): Feature<Polygon>[] {
-  const { lat, lng } = venue;
-  return all.filter((f) => {
-    const coords = f.geometry.coordinates[0];
-    return coords.some(([bLng, bLat]) =>
-      Math.abs(bLng - lng) < NEARBY_DEG && Math.abs(bLat - lat) < NEARBY_DEG,
-    );
-  });
-}
-
-type Slot = 'sunny' | 'shaded' | 'night';
-
-function computeSlotStatus(
-  venue:    Venue,
-  nearby:   Feature<Polygon>[],
-  date:     Date,
-): Slot {
-  const sun = getSunPosition(date);
-  if (!sun.isAboveHorizon) return 'night';
-
-  const pt = point([venue.lng, venue.lat]);
-
-  for (const building of nearby) {
-    const shadow = projectShadow(building, sun.azimuth, sun.altitude);
-    if (shadow && booleanPointInPolygon(pt, shadow)) return 'shaded';
-  }
-  return 'sunny';
-}
+const SLOTS = 48; // every 30 minutes
 
 export default function SunnyWindowBar({ venue, dateStr, buildings }: Props) {
   // Defer heavy computation so popup opens immediately; bar fills in shortly after

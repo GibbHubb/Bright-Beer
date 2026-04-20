@@ -48,10 +48,26 @@
   margin: 0 0 3px;
 }
 
-.mapsLink {
-  display: inline-block;
+.actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-top: 12px;
+}
+.mapsLink {
   font-size: 12px;
   color: #60a5fa;
 }
 .mapsLink:hover { color: #93c5fd; }
+.shareBtn {
+  background: rgba(255,215,0,0.12);
+  border: 1px solid rgba(255,215,0,0.3);
+  border-radius: 6px;
+  color: #FFD700;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.shareBtn:hover { background: rgba(255,215,0,0.2); }

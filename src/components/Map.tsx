@@ -4,6 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import type { FeatureCollection, Polygon } from 'geojson';
 import type { VenueWithStatus } from '../lib/venueStatus';
 import { statusColor } from '../lib/venueStatus';
+import type { WeatherConfidence } from '../hooks/useWeather';
 import { AMSTERDAM_CENTER, DEFAULT_ZOOM, BASEMAP_STYLE } from '../constants/amsterdam';
 
 const SHADOW_SOURCE   = 'shadows';
@@ -18,9 +19,10 @@ interface Props {
   shadows:   FeatureCollection<Polygon>;
   onVenueClick: (v: VenueWithStatus) => void;
   onBoundsChange: (bounds: { north: number; south: number; east: number; west: number }, zoom: number, center: [number, number]) => void;
+  weatherConfidence?: WeatherConfidence | null;
 }
 
-export default function Map({ venues, shadows, onVenueClick, onBoundsChange }: Props) {
+export default function Map({ venues, shadows, onVenueClick, onBoundsChange, weatherConfidence }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef       = useRef<maplibregl.Map | null>(null);
 
@@ -146,21 +148,33 @@ export default function Map({ venues, shadows, onVenueClick, onBoundsChange }: P
     src?.setData(shadows);
   }, [shadows]);
 
-  // Update venue markers
+  // Update venue markers — apply weather dimming to sunny markers
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
     const src = map.getSource(VENUE_SOURCE) as maplibregl.GeoJSONSource | undefined;
     if (!src) return;
+
+    const dimSunny = weatherConfidence === 'cloudy' || weatherConfidence === 'rain';
+
     src.setData({
       type: 'FeatureCollection',
-      features: venues.map((v) => ({
-        type:       'Feature',
-        geometry:   { type: 'Point', coordinates: [v.lng, v.lat] },
-        properties: { ...v, color: statusColor(v.status) },
-      })),
+      features: venues.map((v) => {
+        const color = (v.status === 'sunny' && dimSunny) ? '#B8A000' : statusColor(v.status);
+        const opacity = (v.status === 'sunny' && dimSunny) ? 0.5 : 0.9;
+        return {
+          type:       'Feature',
+          geometry:   { type: 'Point', coordinates: [v.lng, v.lat] },
+          properties: { ...v, color, opacity },
+        };
+      }),
     });
-  }, [venues]);
+
+    // Update circle-opacity to use per-feature property
+    if (map.getLayer(VENUE_LAYER)) {
+      map.setPaintProperty(VENUE_LAYER, 'circle-opacity', ['get', 'opacity']);
+    }
+  }, [venues, weatherConfidence]);
 
   return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
 }

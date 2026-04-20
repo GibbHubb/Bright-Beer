@@ -1,21 +1,28 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import Map from './components/Map';
 import TimeSlider from './components/TimeSlider';
 import DatePicker from './components/DatePicker';
 import FilterBar from './components/FilterBar';
 import VenuePopup from './components/VenuePopup';
+import BestWindowBanner from './components/BestWindowBanner';
 import { useSunPosition } from './hooks/useSunPosition';
 import { useVenues } from './hooks/useVenues';
 import { useShadows } from './hooks/useShadows';
 import { useBuildingTiles } from './hooks/useBuildingTiles';
+import { useWeather, getConfidence } from './hooks/useWeather';
 import { classifyVenues, applyFilters } from './lib/venueStatus';
+import { computeBestWindow } from './lib/bestWindow';
 import type { VenueWithStatus, VenueFilter } from './lib/venueStatus';
+import type { WeatherConfidence } from './hooks/useWeather';
 import { AMSTERDAM_CENTER } from './constants/amsterdam';
 import './index.css';
 
 type Bounds = { north: number; south: number; east: number; west: number };
 
 const MAX_VENUES = 250;
+
+// S4 — read URL params once at module level
+const _params = new URLSearchParams(window.location.search);
 
 function todayStr() { return new Date().toISOString().slice(0, 10); }
 function nowMinutes() { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
@@ -31,14 +38,23 @@ function distKm(lat1: number, lng1: number, lat2: number, lng2: number): number 
 }
 
 export default function App() {
-  const [dateStr,   setDateStr]   = useState(todayStr);
-  const [minutes,   setMinutes]   = useState(nowMinutes);
+  // S4 — initialise from URL params if present
+  const [dateStr,   setDateStr]   = useState(() => _params.get('date') ?? todayStr());
+  const [minutes,   setMinutes]   = useState(() => {
+    const t = parseInt(_params.get('time') ?? '', 10);
+    return isFinite(t) ? t : nowMinutes();
+  });
   const [sunnyOnly, setSunnyOnly] = useState(false);
   const [filters,   setFilters]   = useState<VenueFilter[]>([]);
   const [selected,  setSelected]  = useState<VenueWithStatus | null>(null);
   const [bounds,    setBounds]    = useState<Bounds | null>(null);
   const [zoom,      setZoom]      = useState(14);
-  const [center,    setCenter]    = useState<[number, number]>(AMSTERDAM_CENTER); // [lng, lat]
+  const [center,    setCenter]    = useState<[number, number]>(() => {
+    const lat = parseFloat(_params.get('lat') ?? '');
+    const lng = parseFloat(_params.get('lng') ?? '');
+    return isFinite(lat) && isFinite(lng) ? [lng, lat] : AMSTERDAM_CENTER;
+  });
+  const [venueIdFromUrl] = useState(() => _params.get('venue'));
 
   const date = useMemo(() => {
     const [y, m, d] = dateStr.split('-').map(Number);
@@ -49,6 +65,14 @@ export default function App() {
   const { venues: rawVenues, loading, error } = useVenues();
   const buildings                           = useBuildingTiles(bounds, zoom);
   const shadows                             = useShadows(buildings, sunPosition, zoom);
+
+  // S5 — weather confidence
+  const weather = useWeather();
+  const weatherConfidence: WeatherConfidence | null = useMemo(() => {
+    if (dateStr !== todayStr()) return null; // only apply to today
+    const hourIdx = Math.floor(minutes / 60);
+    return getConfidence(weather, hourIdx);
+  }, [weather, minutes, dateStr]);
 
   // Classify all venues, cap to 250 closest to map centre
   const venues: VenueWithStatus[] = useMemo(() => {
@@ -70,6 +94,22 @@ export default function App() {
   }, [venues, filters, sunnyOnly]);
 
   const sunnyCount = useMemo(() => filteredVenues.filter(v => v.status === 'sunny').length, [filteredVenues]);
+
+  // S3 — best sunny window banner (recomputes only on date / buildings change)
+  const bestWindow = useMemo(
+    () => computeBestWindow(venues, buildings, dateStr, center),
+    [venues, buildings, dateStr, center],
+  );
+
+  // S4 — open venue popup from URL param when venues first load
+  useEffect(() => {
+    if (!venueIdFromUrl || !venues.length) return;
+    const match = venues.find((v) => v.id === venueIdFromUrl);
+    if (match) {
+      setSelected(match);
+      setCenter([match.lng, match.lat]);
+    }
+  }, [venues, venueIdFromUrl]);
 
   const handleVenueClick = useCallback((v: VenueWithStatus) => setSelected(v), []);
   const handleClose      = useCallback(() => setSelected(null), []);
@@ -93,12 +133,16 @@ export default function App() {
         </div>
       </header>
 
+      {/* S3 — Best window banner */}
+      <BestWindowBanner window={bestWindow} />
+
       <div className="map-wrap">
         <Map
           venues={filteredVenues}
           shadows={shadows}
           onVenueClick={handleVenueClick}
           onBoundsChange={handleBounds}
+          weatherConfidence={weatherConfidence}
         />
 
         <div className="slider-overlay">
@@ -113,6 +157,7 @@ export default function App() {
             onToggle={() => setSunnyOnly(o => !o)}
             activeFilters={filters}
             onFilterChange={toggleFilter}
+            weatherConfidence={weatherConfidence}
           />
           {loading && <div className="status-pill">Loading venues…</div>}
           {error   && <div className="status-pill status-pill--error">⚠ {error}</div>}
@@ -122,6 +167,7 @@ export default function App() {
           <VenuePopup
             venue={selected}
             dateStr={dateStr}
+            minutes={minutes}
             buildings={buildings}
             onClose={handleClose}
           />
