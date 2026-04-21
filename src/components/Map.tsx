@@ -20,9 +20,11 @@ interface Props {
   onVenueClick: (v: VenueWithStatus) => void;
   onBoundsChange: (bounds: { north: number; south: number; east: number; west: number }, zoom: number, center: [number, number]) => void;
   weatherConfidence?: WeatherConfidence | null;
+  /** S8 — when set, the map fits the given bbox [south, west, north, east]. */
+  fitBboxTarget?: [number, number, number, number] | null;
 }
 
-export default function Map({ venues, shadows, onVenueClick, onBoundsChange, weatherConfidence }: Props) {
+export default function Map({ venues, shadows, onVenueClick, onBoundsChange, weatherConfidence, fitBboxTarget }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef       = useRef<maplibregl.Map | null>(null);
 
@@ -175,6 +177,17 @@ export default function Map({ venues, shadows, onVenueClick, onBoundsChange, wea
       map.setPaintProperty(VENUE_LAYER, 'circle-opacity', ['get', 'opacity']);
     }
   }, [venues, weatherConfidence]);
+
+  // S8 — fit map to neighbourhood bbox when it changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !fitBboxTarget) return;
+    const [south, west, north, east] = fitBboxTarget;
+    map.fitBounds(
+      [[west, south], [east, north]],
+      { padding: 60, duration: 600, maxZoom: 15 },
+    );
+  }, [fitBboxTarget]);
 
   return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
 }

@@ -9,11 +9,29 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .count { font-size: 13px; }
 .sunny { color: #FFD700; font-weight: 700; font-size: 15px; }
 .muted { color: #6b7280; }
+
+/* Neighbourhood dropdown */
+.neighbourhood {
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 14px;
+  color: #e5e7eb;
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  max-width: 160px;
+}
+.neighbourhood:hover  { border-color: #9ca3af; }
+.neighbourhood:focus  { outline: none; border-color: #FFD700; }
+.neighbourhood option { background: #1f2937; color: #e5e7eb; }
 
 .toggle {
   background: #1f2937;

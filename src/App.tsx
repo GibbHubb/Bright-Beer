@@ -16,6 +16,7 @@ import { computeBestWindow } from './lib/bestWindow';
 import type { VenueWithStatus, VenueFilter } from './lib/venueStatus';
 import type { WeatherConfidence } from './hooks/useWeather';
 import { AMSTERDAM_CENTER } from './constants/amsterdam';
+import { findNeighbourhood } from './constants/neighbourhoods';
 import './index.css';
 
 type Bounds = { north: number; south: number; east: number; west: number };
@@ -48,6 +49,9 @@ export default function App() {
   const [sunnyOnly, setSunnyOnly] = useState(false);
   const [favouritesOnly, setFavouritesOnly] = useState(false);
   const [filters,   setFilters]   = useState<VenueFilter[]>([]);
+  const [neighbourhoodId, setNeighbourhoodId] = useState<string | null>(
+    () => _params.get('hood'),
+  );
   const [selected,  setSelected]  = useState<VenueWithStatus | null>(null);
   const [bounds,    setBounds]    = useState<Bounds | null>(null);
   const [zoom,      setZoom]      = useState(14);
@@ -89,13 +93,22 @@ export default function App() {
       .map(({ v }) => v);
   }, [rawVenues, shadows, sunPosition.isAboveHorizon, center]);
 
+  const neighbourhood = useMemo(
+    () => findNeighbourhood(neighbourhoodId),
+    [neighbourhoodId],
+  );
+
   const filteredVenues = useMemo(() => {
     let result = venues;
     if (filters.length)  result = applyFilters(result, filters);
     if (sunnyOnly)       result = result.filter(v => v.status === 'sunny');
     if (favouritesOnly)  result = result.filter(v => favouriteIds.has(v.id));
+    if (neighbourhood) {
+      const [s, w, n, e] = neighbourhood.bbox;
+      result = result.filter(v => v.lat >= s && v.lat <= n && v.lng >= w && v.lng <= e);
+    }
     return result;
-  }, [venues, filters, sunnyOnly, favouritesOnly, favouriteIds]);
+  }, [venues, filters, sunnyOnly, favouritesOnly, favouriteIds, neighbourhood]);
 
   const sunnyCount = useMemo(() => filteredVenues.filter(v => v.status === 'sunny').length, [filteredVenues]);
 
@@ -114,6 +127,14 @@ export default function App() {
       setCenter([match.lng, match.lat]);
     }
   }, [venues, venueIdFromUrl]);
+
+  // S8 — sync neighbourhood to URL (?hood=<id>) without reloading
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (neighbourhoodId) url.searchParams.set('hood', neighbourhoodId);
+    else                 url.searchParams.delete('hood');
+    window.history.replaceState({}, '', url.toString());
+  }, [neighbourhoodId]);
 
   const handleVenueClick = useCallback((v: VenueWithStatus) => setSelected(v), []);
   const handleClose      = useCallback(() => setSelected(null), []);
@@ -147,6 +168,7 @@ export default function App() {
           onVenueClick={handleVenueClick}
           onBoundsChange={handleBounds}
           weatherConfidence={weatherConfidence}
+          fitBboxTarget={neighbourhood?.bbox ?? null}
         />
 
         <div className="slider-overlay">
@@ -165,6 +187,8 @@ export default function App() {
             favouritesOnly={favouritesOnly}
             onFavouritesToggle={() => setFavouritesOnly(o => !o)}
             favouriteCount={favouriteIds.size}
+            neighbourhoodId={neighbourhoodId}
+            onNeighbourhoodChange={setNeighbourhoodId}
           />
           {loading && <div className="status-pill">Loading venues…</div>}
           {error   && <div className="status-pill status-pill--error">⚠ {error}</div>}
