@@ -7,6 +7,8 @@ export interface Venue {
   lng:          number;
   address?:     string;
   openingHours?: string;
+  website?:     string;
+  phone?:       string;
   amenity?:     string;
   craft?:       string;
   capacity?:    number;
@@ -18,7 +20,7 @@ const OVERPASS_ENDPOINTS = [
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.openstreetmap.fr/api/interpreter',
 ];
-const CACHE_KEY    = 'bright-beer-venues-v2'; // bumped — new fields
+const CACHE_KEY    = 'bright-beer-venues-v3'; // bumped — added website/phone
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 const QUERY = `
@@ -56,6 +58,8 @@ function parseElement(el: Record<string, unknown>): Venue | null {
     name:             tags['name'] || tags['amenity'] || 'Terrace',
     lat, lng, address,
     openingHours:     tags['opening_hours'],
+    website:          tags['website'] || tags['contact:website'],
+    phone:            tags['phone'] || tags['contact:phone'],
     amenity:          tags['amenity'],
     craft:            tags['craft'],
     capacity:         parseCapacity(tags['capacity']),
