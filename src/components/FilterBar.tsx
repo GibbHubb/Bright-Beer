@@ -10,6 +10,9 @@ interface Props {
   activeFilters:     VenueFilter[];
   onFilterChange:    (f: VenueFilter) => void;
   weatherConfidence: WeatherConfidence | null;
+  favouritesOnly:    boolean;
+  onFavouritesToggle: () => void;
+  favouriteCount:    number;
 }
 
 const CHIPS: { id: VenueFilter; label: string }[] = [
@@ -27,6 +30,7 @@ const WEATHER_LABEL: Record<WeatherConfidence, string> = {
 
 export default function FilterBar({
   sunnyCount, totalCount, sunnyOnly, onToggle, activeFilters, onFilterChange, weatherConfidence,
+  favouritesOnly, onFavouritesToggle, favouriteCount,
 }: Props) {
   return (
     <div className={styles.bar}>
@@ -59,6 +63,14 @@ export default function FilterBar({
             {label}
           </button>
         ))}
+        <button
+          className={`${styles.chip} ${styles.favChip} ${favouritesOnly ? styles.active : ''}`}
+          onClick={onFavouritesToggle}
+          disabled={favouriteCount === 0 && !favouritesOnly}
+          title={favouriteCount === 0 ? 'Heart a venue to save favourites' : undefined}
+        >
+          ♥ Favourites{favouriteCount > 0 ? ` (${favouriteCount})` : ''}
+        </button>
       </div>
     </div>
   );

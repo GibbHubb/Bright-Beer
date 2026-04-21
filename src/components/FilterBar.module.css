@@ -56,6 +56,19 @@
   color: #FFD700;
 }
 .chip:hover { border-color: #9ca3af; color: #e5e7eb; }
+.chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.chip:disabled:hover { border-color: #374151; color: #9ca3af; }
+
+/* Favourites chip takes the red accent when active */
+.favChip.active {
+  background: rgba(239,68,68,0.12);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+.favChip:hover:not(:disabled) { border-color: #ef4444; color: #ef4444; }
 
 /* Top right group */
 .topRight {

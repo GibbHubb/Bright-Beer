@@ -10,6 +10,7 @@ import { useVenues } from './hooks/useVenues';
 import { useShadows } from './hooks/useShadows';
 import { useBuildingTiles } from './hooks/useBuildingTiles';
 import { useWeather, getConfidence } from './hooks/useWeather';
+import { useFavourites } from './hooks/useFavourites';
 import { classifyVenues, applyFilters } from './lib/venueStatus';
 import { computeBestWindow } from './lib/bestWindow';
 import type { VenueWithStatus, VenueFilter } from './lib/venueStatus';
@@ -45,6 +46,7 @@ export default function App() {
     return isFinite(t) ? t : nowMinutes();
   });
   const [sunnyOnly, setSunnyOnly] = useState(false);
+  const [favouritesOnly, setFavouritesOnly] = useState(false);
   const [filters,   setFilters]   = useState<VenueFilter[]>([]);
   const [selected,  setSelected]  = useState<VenueWithStatus | null>(null);
   const [bounds,    setBounds]    = useState<Bounds | null>(null);
@@ -65,6 +67,7 @@ export default function App() {
   const { venues: rawVenues, loading, error } = useVenues();
   const buildings                           = useBuildingTiles(bounds, zoom);
   const shadows                             = useShadows(buildings, sunPosition, zoom);
+  const { favouriteIds, isFavourite, toggleFavourite } = useFavourites();
 
   // S5 — weather confidence
   const weather = useWeather();
@@ -88,10 +91,11 @@ export default function App() {
 
   const filteredVenues = useMemo(() => {
     let result = venues;
-    if (filters.length) result = applyFilters(result, filters);
+    if (filters.length)  result = applyFilters(result, filters);
     if (sunnyOnly)       result = result.filter(v => v.status === 'sunny');
+    if (favouritesOnly)  result = result.filter(v => favouriteIds.has(v.id));
     return result;
-  }, [venues, filters, sunnyOnly]);
+  }, [venues, filters, sunnyOnly, favouritesOnly, favouriteIds]);
 
   const sunnyCount = useMemo(() => filteredVenues.filter(v => v.status === 'sunny').length, [filteredVenues]);
 
@@ -158,6 +162,9 @@ export default function App() {
             activeFilters={filters}
             onFilterChange={toggleFilter}
             weatherConfidence={weatherConfidence}
+            favouritesOnly={favouritesOnly}
+            onFavouritesToggle={() => setFavouritesOnly(o => !o)}
+            favouriteCount={favouriteIds.size}
           />
           {loading && <div className="status-pill">Loading venues…</div>}
           {error   && <div className="status-pill status-pill--error">⚠ {error}</div>}
@@ -170,6 +177,8 @@ export default function App() {
             minutes={minutes}
             buildings={buildings}
             onClose={handleClose}
+            isFavourite={isFavourite(selected.id)}
+            onToggleFavourite={toggleFavourite}
           />
         )}
       </div>
