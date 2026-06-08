@@ -7,9 +7,20 @@ export interface SunPosition {
   isAboveHorizon: boolean;
 }
 
-const [lng, lat] = AMSTERDAM_CENTER;
+// S12 — city-aware reference point. Module-level mutable so legacy callers
+// that don't thread coords keep working; the active city should call
+// `setSunReferencePoint([lng, lat])` once per change.
+let _refLng = AMSTERDAM_CENTER[0];
+let _refLat = AMSTERDAM_CENTER[1];
 
-export function getSunPosition(date: Date): SunPosition {
+export function setSunReferencePoint(center: [number, number]) {
+  _refLng = center[0];
+  _refLat = center[1];
+}
+
+export function getSunPosition(date: Date, center?: [number, number]): SunPosition {
+  const lng = center ? center[0] : _refLng;
+  const lat = center ? center[1] : _refLat;
   const pos = SunCalc.getPosition(date, lat, lng);
   return {
     azimuth:        pos.azimuth,          // radians from south, clockwise
@@ -19,6 +30,8 @@ export function getSunPosition(date: Date): SunPosition {
 }
 
 /** Returns the sun times for a given date (sunrise, sunset, golden hour, etc.) */
-export function getSunTimes(date: Date) {
+export function getSunTimes(date: Date, center?: [number, number]) {
+  const lng = center ? center[0] : _refLng;
+  const lat = center ? center[1] : _refLat;
   return SunCalc.getTimes(date, lat, lng);
 }

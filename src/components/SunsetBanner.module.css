@@ -1,0 +1,10 @@
+.banner {
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #FFD700;
+  background: rgba(13, 17, 23, 0.55);
+  text-align: center;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}

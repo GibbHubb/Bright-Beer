@@ -1,0 +1,75 @@
+.wrap {
+  position: relative;
+}
+
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #e5e7eb;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.trigger:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.caret {
+  font-size: 10px;
+  color: #9ca3af;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 200px;
+  background: #1a2030;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  list-style: none;
+  overflow: hidden;
+  z-index: 50;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.option:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.optionActive {
+  background: rgba(255, 215, 0, 0.08);
+}
+
+.cityName {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e5e7eb;
+}
+
+.optionActive .cityName {
+  color: #FFD700;
+}
+
+.cityCount {
+  font-size: 11px;
+  color: #9ca3af;
+  white-space: nowrap;
+}

@@ -1,4 +1,5 @@
 import { AMSTERDAM_BBOX } from '../constants/amsterdam';
+import type { City } from '../constants/cities';
 
 export interface Venue {
   id:           string;
@@ -13,6 +14,10 @@ export interface Venue {
   craft?:       string;
   capacity?:    number;
   terraceCapacity?: number;
+  // S11 — explicit terrace flag. true only when OSM tags outdoor_seating=yes;
+  // unknown/missing/no tag treated as false (conservative — user opts in to
+  // see indoor venues by leaving the Terrace filter off).
+  hasOutdoorSeating: boolean;
 }
 
 const OVERPASS_ENDPOINTS = [
@@ -20,17 +25,28 @@ const OVERPASS_ENDPOINTS = [
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.openstreetmap.fr/api/interpreter',
 ];
-const CACHE_KEY    = 'bright-beer-venues-v3'; // bumped — added website/phone
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+// v5 — S12 multi-city: cache key partitions by city id so Amsterdam venues
+// don't bleed into Rotterdam (or vice versa) on city switch.
+const CACHE_KEY_BASE = 'bright-beer-venues-v5';
+const CACHE_TTL_MS   = 24 * 60 * 60 * 1000;
 
-const QUERY = `
-[out:json][timeout:60][bbox:${AMSTERDAM_BBOX}];
+function buildQuery(bbox: string): string {
+  return `
+[out:json][timeout:60][bbox:${bbox}];
 (
-  node["amenity"~"bar|pub|restaurant|cafe"]["outdoor_seating"="yes"];
-  way["amenity"~"bar|pub|restaurant|cafe"]["outdoor_seating"="yes"];
+  node["amenity"~"bar|pub|restaurant|cafe"];
+  way["amenity"~"bar|pub|restaurant|cafe"];
 );
 out center tags;
 `.trim();
+}
+
+function cacheKey(cityId: string): string {
+  return `${CACHE_KEY_BASE}-${cityId}`;
+}
+
+// Legacy default (back-compat for any caller that doesn't pass a city).
+const QUERY = buildQuery(AMSTERDAM_BBOX);
 
 function parseCapacity(val: string | undefined): number | undefined {
   if (!val) return undefined;
@@ -54,22 +70,31 @@ function parseElement(el: Record<string, unknown>): Venue | null {
   const address = street ? `${street}${housenr ? ' ' + housenr : ''}` : undefined;
 
   return {
-    id:               String(el.id),
-    name:             tags['name'] || tags['amenity'] || 'Terrace',
+    id:                 String(el.id),
+    name:               tags['name'] || tags['amenity'] || 'Venue',
     lat, lng, address,
-    openingHours:     tags['opening_hours'],
-    website:          tags['website'] || tags['contact:website'],
-    phone:            tags['phone'] || tags['contact:phone'],
-    amenity:          tags['amenity'],
-    craft:            tags['craft'],
-    capacity:         parseCapacity(tags['capacity']),
-    terraceCapacity:  parseCapacity(tags['outdoor_seating:capacity']),
+    openingHours:       tags['opening_hours'],
+    website:            tags['website'] || tags['contact:website'],
+    phone:              tags['phone'] || tags['contact:phone'],
+    amenity:            tags['amenity'],
+    craft:              tags['craft'],
+    capacity:           parseCapacity(tags['capacity']),
+    terraceCapacity:    parseCapacity(tags['outdoor_seating:capacity']),
+    // S11 — strict literal "yes" check; anything else (no / missing / "garden")
+    // stays false so the filter behaves predictably.
+    hasOutdoorSeating:  tags['outdoor_seating'] === 'yes',
   };
 }
 
-export async function fetchVenues(): Promise<Venue[]> {
+export async function fetchVenues(city?: City): Promise<Venue[]> {
+  // S12 — when no city is supplied, fall back to legacy Amsterdam query +
+  // cache slot so callers that pre-date the city refactor keep working.
+  const id    = city?.id ?? 'amsterdam';
+  const key   = cacheKey(id);
+  const query = city ? buildQuery(city.overpassBbox) : QUERY;
+
   try {
-    const raw = localStorage.getItem(CACHE_KEY);
+    const raw = localStorage.getItem(key);
     if (raw) {
       const cached = JSON.parse(raw);
       if (Date.now() - cached.ts < CACHE_TTL_MS) return cached.venues;
@@ -82,7 +107,7 @@ export async function fetchVenues(): Promise<Venue[]> {
       const res = await fetch(url, {
         method:  'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body:    `data=${encodeURIComponent(QUERY)}`,
+        body:    `data=${encodeURIComponent(query)}`,
       });
       if (!res.ok) continue;
       json = await res.json();
@@ -95,6 +120,6 @@ export async function fetchVenues(): Promise<Venue[]> {
     .map(parseElement)
     .filter((v): v is Venue => v !== null);
 
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), venues })); } catch (_) {}
+  try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), venues })); } catch (_) {}
   return venues;
 }

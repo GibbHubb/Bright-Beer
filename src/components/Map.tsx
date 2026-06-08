@@ -6,6 +6,7 @@ import type { VenueWithStatus } from '../lib/venueStatus';
 import { statusColor } from '../lib/venueStatus';
 import type { WeatherConfidence } from '../hooks/useWeather';
 import { AMSTERDAM_CENTER, DEFAULT_ZOOM, BASEMAP_STYLE } from '../constants/amsterdam';
+import type { City } from '../constants/cities';
 
 const SHADOW_SOURCE   = 'shadows';
 const SHADOW_LAYER    = 'shadow-fill';
@@ -22,21 +23,23 @@ interface Props {
   weatherConfidence?: WeatherConfidence | null;
   /** S8 — when set, the map fits the given bbox [south, west, north, east]. */
   fitBboxTarget?: [number, number, number, number] | null;
+  /** S12 — active city. Map re-flies to its centre on change. Optional for back-compat. */
+  city?: City;
 }
 
-export default function Map({ venues, shadows, onVenueClick, onBoundsChange, weatherConfidence, fitBboxTarget }: Props) {
+export default function Map({ venues, shadows, onVenueClick, onBoundsChange, weatherConfidence, fitBboxTarget, city }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef       = useRef<maplibregl.Map | null>(null);
 
-  // Init map once
+  // Init map once. Init centre/zoom from the active city when supplied.
   useEffect(() => {
     if (!containerRef.current) return;
 
     const map = new maplibregl.Map({
       container: containerRef.current,
       style:     BASEMAP_STYLE,
-      center:    AMSTERDAM_CENTER,
-      zoom:      DEFAULT_ZOOM,
+      center:    city?.center ?? AMSTERDAM_CENTER,
+      zoom:      city?.defaultZoom ?? DEFAULT_ZOOM,
     });
     mapRef.current = map;
 
@@ -188,6 +191,13 @@ export default function Map({ venues, shadows, onVenueClick, onBoundsChange, wea
       { padding: 60, duration: 600, maxZoom: 15 },
     );
   }, [fitBboxTarget]);
+
+  // S12 — re-centre on city change (instant jump per plan §8 default)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !city) return;
+    map.jumpTo({ center: city.center, zoom: city.defaultZoom });
+  }, [city?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
 }

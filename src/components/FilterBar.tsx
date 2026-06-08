@@ -1,6 +1,6 @@
 import type { VenueFilter } from '../lib/venueStatus';
 import type { WeatherConfidence } from '../hooks/useWeather';
-import { NEIGHBOURHOODS } from '../constants/neighbourhoods';
+import { getNeighbourhoods } from '../constants/neighbourhoods';
 import styles from './FilterBar.module.css';
 
 interface Props {
@@ -16,6 +16,12 @@ interface Props {
   favouriteCount:    number;
   neighbourhoodId:   string | null;
   onNeighbourhoodChange: (id: string | null) => void;
+  /** S12 — active city slug; drives neighbourhood options. */
+  cityId:            string;
+  // S11 — Terrace filter
+  terraceOnly:       boolean;
+  onTerraceToggle:   () => void;
+  terraceCount:      number;
 }
 
 const CHIPS: { id: VenueFilter; label: string }[] = [
@@ -34,8 +40,10 @@ const WEATHER_LABEL: Record<WeatherConfidence, string> = {
 export default function FilterBar({
   sunnyCount, totalCount, sunnyOnly, onToggle, activeFilters, onFilterChange, weatherConfidence,
   favouritesOnly, onFavouritesToggle, favouriteCount,
-  neighbourhoodId, onNeighbourhoodChange,
+  neighbourhoodId, onNeighbourhoodChange, cityId,
+  terraceOnly, onTerraceToggle, terraceCount,
 }: Props) {
+  const neighbourhoods = getNeighbourhoods(cityId);
   return (
     <div className={styles.bar}>
       <div className={styles.top}>
@@ -50,7 +58,7 @@ export default function FilterBar({
           aria-label="Filter by neighbourhood"
         >
           <option value="">All neighbourhoods</option>
-          {NEIGHBOURHOODS.map((n) => (
+          {neighbourhoods.map((n) => (
             <option key={n.id} value={n.id}>{n.name}</option>
           ))}
         </select>
@@ -85,6 +93,14 @@ export default function FilterBar({
           title={favouriteCount === 0 ? 'Heart a venue to save favourites' : undefined}
         >
           ♥ Favourites{favouriteCount > 0 ? ` (${favouriteCount})` : ''}
+        </button>
+        {/* S11 — Terrace-only filter (default OFF) */}
+        <button
+          className={`${styles.chip} ${terraceOnly ? styles.active : ''}`}
+          onClick={onTerraceToggle}
+          title="Hide venues without a tagged outdoor terrace"
+        >
+          🪑 Terrace only{terraceCount > 0 ? ` (${terraceCount})` : ''}
         </button>
       </div>
     </div>

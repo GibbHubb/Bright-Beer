@@ -53,6 +53,19 @@ html, body, #root {
   gap: 10px;
 }
 
+.city-switcher {
+  background: #1f2937;
+  color: #f9fafb;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.city-switcher:hover { border-color: #4b5563; }
+.city-switcher:focus { outline: 2px solid #3b82f6; outline-offset: 1px; }
+
 /* ── Map wrapper ─────────────────────────────────────────────────────── */
 .map-wrap {
   flex: 1;

@@ -5,12 +5,19 @@ import DatePicker from './components/DatePicker';
 import FilterBar from './components/FilterBar';
 import VenuePopup from './components/VenuePopup';
 import BestWindowBanner from './components/BestWindowBanner';
+import { SunsetBanner } from './components/SunsetBanner';
+import { VenueList } from './components/VenueList';
+import { CityDropdown } from './components/CityDropdown';
 import { useSunPosition } from './hooks/useSunPosition';
 import { useVenues } from './hooks/useVenues';
 import { useShadows } from './hooks/useShadows';
 import { useBuildingTiles } from './hooks/useBuildingTiles';
 import { useWeather, getConfidence } from './hooks/useWeather';
 import { useFavourites } from './hooks/useFavourites';
+import { useDebugFlag } from './hooks/useDebugFlag';
+import { useCity } from './hooks/useCity';
+import SunDebugOverlay from './dev/SunDebugOverlay';
+import { setSunReferencePoint } from './lib/sunCalc';
 import { classifyVenues, applyFilters } from './lib/venueStatus';
 import { computeBestWindow } from './lib/bestWindow';
 import type { VenueWithStatus, VenueFilter } from './lib/venueStatus';
@@ -52,9 +59,15 @@ export default function App() {
   const [neighbourhoodId, setNeighbourhoodId] = useState<string | null>(
     () => _params.get('hood'),
   );
+  // S11 — Terrace-only filter, off by default; opt-in via chip or ?terrace=1
+  const [terraceOnly, setTerraceOnly] = useState<boolean>(
+    () => _params.get('terrace') === '1',
+  );
   const [selected,  setSelected]  = useState<VenueWithStatus | null>(null);
   const [bounds,    setBounds]    = useState<Bounds | null>(null);
   const [zoom,      setZoom]      = useState(14);
+  // S12 — initial centre falls back to whatever city the URL chose, but
+  // explicit ?lat/?lng wins. Re-centring on city change is handled by Map.
   const [center,    setCenter]    = useState<[number, number]>(() => {
     const lat = parseFloat(_params.get('lat') ?? '');
     const lng = parseFloat(_params.get('lng') ?? '');
@@ -67,8 +80,17 @@ export default function App() {
     return new Date(y, m - 1, d, Math.floor(minutes / 60), minutes % 60);
   }, [dateStr, minutes]);
 
-  const sunPosition                         = useSunPosition(date);
-  const { venues: rawVenues, loading, error } = useVenues();
+  // S12 — active city drives venue fetch + map centre + sun reference point
+  const { city, cities, setCityId } = useCity();
+  // Sync sun-calc reference point on every city change so any module-scoped
+  // consumer (currently none) sees the new origin.
+  useEffect(() => { setSunReferencePoint(city.center); }, [city.center]);
+  // Neighbourhood ids are city-scoped; clear on city change.
+  useEffect(() => { setNeighbourhoodId(null); setSelected(null); }, [city.id]);
+
+  const sunPosition                           = useSunPosition(date);
+  const debugMode                             = useDebugFlag();
+  const { venues: rawVenues, loading, error } = useVenues(city);
   const buildings                           = useBuildingTiles(bounds, zoom);
   const shadows                             = useShadows(buildings, sunPosition, zoom);
   const { favouriteIds, isFavourite, toggleFavourite } = useFavourites();
@@ -94,8 +116,8 @@ export default function App() {
   }, [rawVenues, shadows, sunPosition.isAboveHorizon, center]);
 
   const neighbourhood = useMemo(
-    () => findNeighbourhood(neighbourhoodId),
-    [neighbourhoodId],
+    () => findNeighbourhood(neighbourhoodId, city.id),
+    [neighbourhoodId, city.id],
   );
 
   const filteredVenues = useMemo(() => {
@@ -103,14 +125,20 @@ export default function App() {
     if (filters.length)  result = applyFilters(result, filters);
     if (sunnyOnly)       result = result.filter(v => v.status === 'sunny');
     if (favouritesOnly)  result = result.filter(v => favouriteIds.has(v.id));
+    if (terraceOnly)     result = result.filter(v => v.hasOutdoorSeating);
     if (neighbourhood) {
       const [s, w, n, e] = neighbourhood.bbox;
       result = result.filter(v => v.lat >= s && v.lat <= n && v.lng >= w && v.lng <= e);
     }
     return result;
-  }, [venues, filters, sunnyOnly, favouritesOnly, favouriteIds, neighbourhood]);
+  }, [venues, filters, sunnyOnly, favouritesOnly, terraceOnly, favouriteIds, neighbourhood]);
 
   const sunnyCount = useMemo(() => filteredVenues.filter(v => v.status === 'sunny').length, [filteredVenues]);
+  // S11 — count of terrace-eligible venues in the current view (used for the chip label)
+  const terraceCount = useMemo(
+    () => filteredVenues.filter(v => v.hasOutdoorSeating).length,
+    [filteredVenues],
+  );
 
   // S3 — best sunny window banner (recomputes only on date / buildings change)
   const bestWindow = useMemo(
@@ -136,6 +164,14 @@ export default function App() {
     window.history.replaceState({}, '', url.toString());
   }, [neighbourhoodId]);
 
+  // S11 — sync terrace filter to URL (?terrace=1)
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (terraceOnly) url.searchParams.set('terrace', '1');
+    else             url.searchParams.delete('terrace');
+    window.history.replaceState({}, '', url.toString());
+  }, [terraceOnly]);
+
   const handleVenueClick = useCallback((v: VenueWithStatus) => setSelected(v), []);
   const handleClose      = useCallback(() => setSelected(null), []);
   const handleBounds     = useCallback((b: Bounds, z: number, c: [number, number]) => {
@@ -151,15 +187,26 @@ export default function App() {
       <header className="header">
         <div className="header-brand">
           <span className="header-sun">☀️</span>
-          <span className="header-title">Sunny Amsterdam</span>
+          <span className="header-title">Sunny {city.name}</span>
         </div>
         <div className="header-controls">
+          {/* S28 — multi-city radar dropdown */}
+          <CityDropdown
+            city={city}
+            cities={cities}
+            setCityId={setCityId}
+            activeVenues={rawVenues}
+            date={date}
+          />
           <DatePicker date={dateStr} onChange={setDateStr} />
         </div>
       </header>
 
       {/* S3 — Best window banner */}
       <BestWindowBanner window={bestWindow} />
+
+      {/* S25 — Sunset countdown banner */}
+      <SunsetBanner dateStr={dateStr} cityCentre={city.center} />
 
       <div className="map-wrap">
         <Map
@@ -169,10 +216,11 @@ export default function App() {
           onBoundsChange={handleBounds}
           weatherConfidence={weatherConfidence}
           fitBboxTarget={neighbourhood?.bbox ?? null}
+          city={city}
         />
 
         <div className="slider-overlay">
-          <TimeSlider minutes={minutes} onChange={setMinutes} />
+          <TimeSlider minutes={minutes} onChange={setMinutes} date={date} cityCentre={city.center} />
         </div>
 
         <div className="filter-overlay">
@@ -189,10 +237,32 @@ export default function App() {
             favouriteCount={favouriteIds.size}
             neighbourhoodId={neighbourhoodId}
             onNeighbourhoodChange={setNeighbourhoodId}
+            cityId={city.id}
+            terraceOnly={terraceOnly}
+            onTerraceToggle={() => setTerraceOnly(o => !o)}
+            terraceCount={terraceCount}
           />
           {loading && <div className="status-pill">Loading venues…</div>}
           {error   && <div className="status-pill status-pill--error">⚠ {error}</div>}
         </div>
+
+        {/* S24 — hidden gem + sunny venue list (bottom-left, collapsible) */}
+        <VenueList
+          venues={filteredVenues}
+          favouriteIds={favouriteIds}
+          onVenueClick={handleVenueClick}
+          onToggleFavourite={toggleFavourite}
+        />
+
+        {/* S13 — dev-only sun debug overlay (DEV mode or ?debug=1) */}
+        {debugMode && (
+          <SunDebugOverlay
+            sunPosition={sunPosition}
+            date={date}
+            sunnyCount={sunnyCount}
+            totalCount={filteredVenues.length}
+          />
+        )}
 
         {selected && (
           <VenuePopup

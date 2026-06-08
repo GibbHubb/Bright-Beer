@@ -15,6 +15,7 @@
 
 .sliderWrap {
   position: relative;
+  padding-top: 12px;
   padding-bottom: 20px;
 }
 
@@ -47,6 +48,46 @@
   background: #FFD700;
   border: 2px solid #1f2937;
   cursor: grab;
+}
+
+.markers {
+  position: absolute;
+  top: -10px;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+}
+
+.marker {
+  position: absolute;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: auto;
+  cursor: help;
+}
+
+.markerLine {
+  display: block;
+  width: 2px;
+  height: 14px;
+  border-radius: 1px;
+  opacity: 0.8;
+}
+
+.markerLabel {
+  position: absolute;
+  top: 16px;
+  font-size: 9px;
+  color: #9ca3af;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.markerAbove .markerLabel {
+  top: auto;
+  bottom: 16px;
 }
 
 .ticks {

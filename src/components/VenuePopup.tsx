@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import type { Feature, Polygon } from 'geojson';
 import type { VenueWithStatus } from '../lib/venueStatus';
 import SunnyWindowBar from './SunnyWindowBar';
+import SunTimeline from './SunTimeline';
+import VenuePhotos from './VenuePhotos';
 import styles from './VenuePopup.module.css';
 
 interface Props {
@@ -139,6 +141,15 @@ export default function VenuePopup({
       </div>
 
       <SunnyWindowBar venue={venue} dateStr={dateStr} buildings={buildings} />
+
+      {/* S9 — live "next 4h" sun timeline. Only shown for today (the daylong
+          bar above already covers other dates). */}
+      {dateStr === new Date().toISOString().slice(0, 10) && (
+        <SunTimeline venue={venue} buildings={buildings} />
+      )}
+
+      {/* S10 — user-submitted photos. Demo mode (local) until VITE_PHOTO_WORKER_URL is set. */}
+      <VenuePhotos venueId={venue.id} venueName={venue.name} />
 
       <div className={styles.actions}>
         <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className={styles.mapsLink}>
