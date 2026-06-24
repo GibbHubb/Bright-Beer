@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { fetchVenues, type Venue } from '../lib/overpass';
+import { fetchVenues, readPinnedCache, type Venue } from '../lib/overpass';
 import { DEFAULT_CITY_ID, type City } from '../constants/cities';
 
 const STATIC_VENUES_URL = import.meta.env.BASE_URL + 'venues.json';
@@ -19,8 +19,20 @@ async function loadVenues(city?: City): Promise<Venue[]> {
     } catch (_) {}
   }
 
-  // 2. Fall back to live Overpass query for the active city
-  return fetchVenues(city);
+  // 2. Try live Overpass (with its own 24 h TTL cache and S30 durable-fallback
+  //    built into fetchVenues — see overpass.ts).
+  try {
+    return await fetchVenues(city);
+  } catch (_) {
+    // 3. S30 — last-resort durable pinned cache for non-Amsterdam cities.
+    //    fetchVenues already checks this internally, but if city is undefined
+    //    (Amsterdam legacy path) we skip this since the static file covers it.
+    if (city) {
+      const pinned = readPinnedCache(city.id);
+      if (pinned) return pinned;
+    }
+    throw _;
+  }
 }
 
 export function useVenues(city?: City) {

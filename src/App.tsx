@@ -17,9 +17,10 @@ import { useFavourites } from './hooks/useFavourites';
 import { useDebugFlag } from './hooks/useDebugFlag';
 import { useCity } from './hooks/useCity';
 import SunDebugOverlay from './dev/SunDebugOverlay';
-import { setSunReferencePoint } from './lib/sunCalc';
+import { setSunReferencePoint, getSunPosition } from './lib/sunCalc';
 import { classifyVenues, applyFilters } from './lib/venueStatus';
 import { computeBestWindow } from './lib/bestWindow';
+import { getMorningSampleTime, computeMorningShadows, filterMorningSun } from './lib/morningSun';
 import type { VenueWithStatus, VenueFilter } from './lib/venueStatus';
 import type { WeatherConfidence } from './hooks/useWeather';
 import { AMSTERDAM_CENTER } from './constants/amsterdam';
@@ -63,6 +64,8 @@ export default function App() {
   const [terraceOnly, setTerraceOnly] = useState<boolean>(
     () => _params.get('terrace') === '1',
   );
+  // S31 — Morning-sun filter (off by default)
+  const [morningSunOnly, setMorningSunOnly] = useState(false);
   const [selected,  setSelected]  = useState<VenueWithStatus | null>(null);
   const [bounds,    setBounds]    = useState<Bounds | null>(null);
   const [zoom,      setZoom]      = useState(14);
@@ -95,6 +98,23 @@ export default function App() {
   const shadows                             = useShadows(buildings, sunPosition, zoom);
   const { favouriteIds, isFavourite, toggleFavourite } = useFavourites();
 
+  // S31 — Morning sample: memoised per dateStr + city.center (fixed for a day/city).
+  // We construct a noon-anchored Date from dateStr so changes to the slider
+  // minute-of-day do NOT invalidate this memo — only date or city do.
+  const morningSampleTime = useMemo(() => {
+    const [y, mo, d] = dateStr.split('-').map(Number);
+    const dayDate = new Date(y, mo - 1, d, 12, 0, 0, 0); // noon anchor — any hour works
+    return getMorningSampleTime(dayDate, city.center);
+  }, [dateStr, city.center]);
+  const morningShadows = useMemo(() => {
+    if (!morningSampleTime) return { type: 'FeatureCollection' as const, features: [] };
+    return computeMorningShadows(buildings, morningSampleTime, city.center);
+  }, [buildings, morningSampleTime, city.center]);
+  const morningSunIsAboveHorizon = useMemo(() => {
+    if (!morningSampleTime) return false;
+    return getSunPosition(morningSampleTime, city.center).isAboveHorizon;
+  }, [morningSampleTime, city.center]);
+
   // S5 — weather confidence
   const weather = useWeather();
   const weatherConfidence: WeatherConfidence | null = useMemo(() => {
@@ -126,12 +146,15 @@ export default function App() {
     if (sunnyOnly)       result = result.filter(v => v.status === 'sunny');
     if (favouritesOnly)  result = result.filter(v => favouriteIds.has(v.id));
     if (terraceOnly)     result = result.filter(v => v.hasOutdoorSeating);
+    // S31 — morning-sun filter: terrace-aware, derived from occlusion at sample time
+    if (morningSunOnly)  result = filterMorningSun(result, morningShadows, morningSunIsAboveHorizon);
     if (neighbourhood) {
       const [s, w, n, e] = neighbourhood.bbox;
       result = result.filter(v => v.lat >= s && v.lat <= n && v.lng >= w && v.lng <= e);
     }
     return result;
-  }, [venues, filters, sunnyOnly, favouritesOnly, terraceOnly, favouriteIds, neighbourhood]);
+  }, [venues, filters, sunnyOnly, favouritesOnly, terraceOnly, morningSunOnly,
+      morningShadows, morningSunIsAboveHorizon, favouriteIds, neighbourhood]);
 
   const sunnyCount = useMemo(() => filteredVenues.filter(v => v.status === 'sunny').length, [filteredVenues]);
   // S11 — count of terrace-eligible venues in the current view (used for the chip label)
@@ -241,6 +264,8 @@ export default function App() {
             terraceOnly={terraceOnly}
             onTerraceToggle={() => setTerraceOnly(o => !o)}
             terraceCount={terraceCount}
+            morningSunOnly={morningSunOnly}
+            onMorningSunToggle={() => setMorningSunOnly(o => !o)}
           />
           {loading && <div className="status-pill">Loading venues…</div>}
           {error   && <div className="status-pill status-pill--error">⚠ {error}</div>}

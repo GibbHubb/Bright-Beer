@@ -18,6 +18,11 @@ function formatTime(minutes: number): string {
 const TICK_HOURS = [0, 3, 6, 9, 12, 15, 18, 21];
 
 const MARKER_COLOR: Record<string, string> = {
+  // Morning markers (S31) — cool blue-violet → warm amber gradient
+  dawn:          '#6366f1', // indigo — deep pre-dawn
+  sunrise:       '#f59e42', // warm amber-orange — first light
+  goldenHourEnd: '#fbbf24', // yellow-gold — morning golden hour ends
+  // Evening markers (S26)
   goldenHour:  '#f59e0b',
   sunsetStart: '#f97316',
   sunset:      '#ef4444',

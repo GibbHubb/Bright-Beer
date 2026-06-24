@@ -22,6 +22,9 @@ interface Props {
   terraceOnly:       boolean;
   onTerraceToggle:   () => void;
   terraceCount:      number;
+  // S31 — Morning-sun filter
+  morningSunOnly:    boolean;
+  onMorningSunToggle: () => void;
 }
 
 const CHIPS: { id: VenueFilter; label: string }[] = [
@@ -42,6 +45,7 @@ export default function FilterBar({
   favouritesOnly, onFavouritesToggle, favouriteCount,
   neighbourhoodId, onNeighbourhoodChange, cityId,
   terraceOnly, onTerraceToggle, terraceCount,
+  morningSunOnly, onMorningSunToggle,
 }: Props) {
   const neighbourhoods = getNeighbourhoods(cityId);
   return (
@@ -101,6 +105,14 @@ export default function FilterBar({
           title="Hide venues without a tagged outdoor terrace"
         >
           🪑 Terrace only{terraceCount > 0 ? ` (${terraceCount})` : ''}
+        </button>
+        {/* S31 — Morning-sun filter: terraces that catch early morning sun */}
+        <button
+          className={`${styles.chip} ${morningSunOnly ? styles.active : ''}`}
+          onClick={onMorningSunToggle}
+          title="Show only terraces that catch morning sun (sunrise + 1 hr; shadow-accurate for Amsterdam)"
+        >
+          🌅 Morning sun
         </button>
       </div>
     </div>

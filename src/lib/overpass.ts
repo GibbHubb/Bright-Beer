@@ -1,6 +1,33 @@
 import { AMSTERDAM_BBOX } from '../constants/amsterdam';
 import type { City } from '../constants/cities';
 
+// S30 — durable (no-TTL) cache for pinned cities.
+// Key: bright-beer-pinned-venues-v1-<cityId>
+// Value: JSON { venues: Venue[] }  — no timestamp, never expires on its own.
+const PINNED_KEY_PREFIX = 'bright-beer-pinned-venues-v1-';
+
+/** Write venue data to the durable pinned cache for a city. */
+export function writePinnedCache(cityId: string, venues: Venue[]): void {
+  try {
+    localStorage.setItem(PINNED_KEY_PREFIX + cityId, JSON.stringify({ venues }));
+  } catch {
+    /* quota exceeded — skip */
+  }
+}
+
+/** Read venue data from the durable pinned cache (returns null if absent). */
+export function readPinnedCache(cityId: string): Venue[] | null {
+  try {
+    const raw = localStorage.getItem(PINNED_KEY_PREFIX + cityId);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed.venues)) return parsed.venues as Venue[];
+  } catch {
+    /* malformed */
+  }
+  return null;
+}
+
 export interface Venue {
   id:           string;
   name:         string;
@@ -93,6 +120,7 @@ export async function fetchVenues(city?: City): Promise<Venue[]> {
   const key   = cacheKey(id);
   const query = city ? buildQuery(city.overpassBbox) : QUERY;
 
+  // 1. Short-lived TTL cache (24 h) — serves fresh data most of the time.
   try {
     const raw = localStorage.getItem(key);
     if (raw) {
@@ -101,6 +129,7 @@ export async function fetchVenues(city?: City): Promise<Venue[]> {
     }
   } catch (_) {}
 
+  // 2. Try live Overpass.
   let json: { elements: Record<string, unknown>[] } | null = null;
   for (const url of OVERPASS_ENDPOINTS) {
     try {
@@ -114,12 +143,19 @@ export async function fetchVenues(city?: City): Promise<Venue[]> {
       break;
     } catch (_) { /* try next */ }
   }
-  if (!json) throw new Error('All Overpass endpoints failed');
 
-  const venues: Venue[] = json.elements
-    .map(parseElement)
-    .filter((v): v is Venue => v !== null);
+  if (json) {
+    const venues: Venue[] = json.elements
+      .map(parseElement)
+      .filter((v): v is Venue => v !== null);
+    try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), venues })); } catch (_) {}
+    return venues;
+  }
 
-  try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), venues })); } catch (_) {}
-  return venues;
+  // 3. S30 — offline fallback: durable pinned cache (no TTL).
+  //    Only populated when the user explicitly pins a city.
+  const pinned = readPinnedCache(id);
+  if (pinned) return pinned;
+
+  throw new Error('All Overpass endpoints failed');
 }
