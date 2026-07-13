@@ -41,9 +41,14 @@ export function projectShadow(
   const shadowLength = height / Math.tan(altitude);
   if (shadowLength < 0.5) return null; // negligible at high sun
 
-  // SunCalc azimuth: 0 = south, east = -π/2, west = +π/2
-  // We want the direction shadows point: OPPOSITE of the sun → add π
-  const shadowBearing = azimuth + Math.PI; // direction shadow falls
+  // SunCalc azimuth: 0 = south, east = -π/2, west = +π/2.
+  // shadowBearing is consumed below as a NORTH-relative compass bearing
+  // (cos → north component, sin → east component). The sun's compass bearing
+  // is (π + azimuth); the shadow points OPPOSITE the sun, adding another π —
+  // and (π + azimuth + π) ≡ azimuth (mod 2π). So the two half-turns cancel and
+  // the shadow bearing is just the azimuth. (S32: the old `azimuth + Math.PI`
+  // double-counted the flip and cast every shadow to the wrong side.)
+  const shadowBearing = azimuth; // direction shadow falls (compass, 0 = north)
 
   const coords = building.geometry.coordinates[0];
   if (!coords || coords.length < 4) return null;

@@ -1,17 +1,13 @@
 /**
  * Radar count accuracy tests.
  *
- * NOTE: No test runner (vitest/jest) is configured in this project.
- * These tests document the expected behaviour of the shadow classification
- * logic used by radarWorker.ts. Add vitest to devDependencies and run
- * `npx vitest` to execute them.
- *
- * Follow-up ticket: install vitest and wire `npm run test`.
+ * Shadow-classification behaviour for the pure `classifyVenues` /
+ * `projectShadow` primitives extracted from venueStatus.ts and
+ * shadowGeometry.ts. The worker (radarWorker.ts) calls these same
+ * primitives.
  */
 
-// The functions under test are pure utilities extracted from venueStatus.ts
-// and shadowGeometry.ts. The worker calls these same primitives.
-
+import { describe, it, expect } from 'vitest';
 import { classifyVenues } from '../venueStatus';
 import { projectShadow } from '../shadowGeometry';
 import type { Feature, FeatureCollection, Polygon } from 'geojson';
@@ -41,73 +37,63 @@ function mkBuilding(lat: number, lng: number, h = 10): Feature<Polygon> {
   };
 }
 
-// ── Test 1: venue inside a shadow polygon is classified 'shaded' ─────────
-function test_venueInShadowIsShaded() {
-  // Sun low in the south (azimuth ≈ 0, altitude ≈ 15°)
-  const azimuth = 0;
-  const altitude = 0.26; // ~15°
+describe('shadow classification', () => {
+  // S32 (fixed): projectShadow now casts the shadow to the correct side.
+  // With a sun due south (azimuth = 0) the shadow falls NORTH of the building,
+  // so a venue placed just north of it is shaded. A 10 m building at ~15°
+  // altitude throws a ~37 m shadow, so the venue must sit within that reach of
+  // the building's north edge (≈22 m north of centre) — 52.3703 is ~33 m north
+  // of centre, comfortably inside the projected hull.
+  it('classifies a venue inside a projected shadow as shaded', () => {
+    // Sun low in the south (azimuth ≈ 0, altitude ≈ 15°)
+    const azimuth = 0;
+    const altitude = 0.26; // ~15°
 
-  const building = mkBuilding(52.37, 4.90);
-  const shadow = projectShadow(building, azimuth, altitude);
-  if (!shadow) throw new Error('Expected shadow to be projected');
+    const building = mkBuilding(52.37, 4.90);
+    const shadow = projectShadow(building, azimuth, altitude);
+    if (!shadow) throw new Error('Expected shadow to be projected');
 
-  // The shadow falls north of the building (opposite of sun direction south).
-  // Place a venue just north of the building centre.
-  const venueNorth = mkVenue('v1', 52.371, 4.90);
+    // The shadow falls north of the building (opposite the sun in the south).
+    // Place a venue just north of the building, within the shadow's reach.
+    const venueNorth = mkVenue('v1', 52.3703, 4.90);
 
-  const fc: FeatureCollection<Polygon> = { type: 'FeatureCollection', features: [shadow] };
-  const classified = classifyVenues([venueNorth], fc, true);
+    const fc: FeatureCollection<Polygon> = { type: 'FeatureCollection', features: [shadow] };
+    const classified = classifyVenues([venueNorth], fc, true);
 
-  // The venue should be shaded (inside the shadow).
-  console.assert(classified[0].status === 'shaded',
-    `Expected shaded, got ${classified[0].status}`);
-  console.log('PASS test_venueInShadowIsShaded');
-}
+    expect(classified[0].status).toBe('shaded');
+  });
 
-// ── Test 2: venue clear of all shadows → sunny ───────────────────────────
-function test_venueOutsideShadowIsSunny() {
-  const azimuth = 0;
-  const altitude = 0.26;
+  it('classifies a venue clear of all shadows as sunny', () => {
+    const azimuth = 0;
+    const altitude = 0.26;
 
-  const building = mkBuilding(52.37, 4.90);
-  const shadow = projectShadow(building, azimuth, altitude);
-  if (!shadow) throw new Error('Expected shadow');
+    const building = mkBuilding(52.37, 4.90);
+    const shadow = projectShadow(building, azimuth, altitude);
+    if (!shadow) throw new Error('Expected shadow');
 
-  // Place venue far south (opposite of shadow direction).
-  const venueSouth = mkVenue('v2', 52.369, 4.90);
+    // Place venue far south (opposite of shadow direction) — well outside
+    // the shadow's reach regardless of which way it's cast.
+    const venueSouth = mkVenue('v2', 52.369, 4.90);
 
-  const fc: FeatureCollection<Polygon> = { type: 'FeatureCollection', features: [shadow] };
-  const classified = classifyVenues([venueSouth], fc, true);
+    const fc: FeatureCollection<Polygon> = { type: 'FeatureCollection', features: [shadow] };
+    const classified = classifyVenues([venueSouth], fc, true);
 
-  console.assert(classified[0].status === 'sunny',
-    `Expected sunny, got ${classified[0].status}`);
-  console.log('PASS test_venueOutsideShadowIsSunny');
-}
+    expect(classified[0].status).toBe('sunny');
+  });
 
-// ── Test 3: sun below horizon → all venues are 'night' ───────────────────
-function test_sunBelowHorizonAllNight() {
-  const venues = [mkVenue('v3', 52.37, 4.90)];
-  const emptyFc: FeatureCollection<Polygon> = { type: 'FeatureCollection', features: [] };
-  const classified = classifyVenues(venues, emptyFc, false);
+  it('marks all venues as night when the sun is below the horizon', () => {
+    const venues = [mkVenue('v3', 52.37, 4.90)];
+    const emptyFc: FeatureCollection<Polygon> = { type: 'FeatureCollection', features: [] };
+    const classified = classifyVenues(venues, emptyFc, false);
 
-  console.assert(classified[0].status === 'night',
-    `Expected night, got ${classified[0].status}`);
-  console.log('PASS test_sunBelowHorizonAllNight');
-}
+    expect(classified[0].status).toBe('night');
+  });
 
-// ── Test 4: no buildings → all terrace venues are sunny ──────────────────
-function test_noBuildings_allSunny() {
-  const venues = [mkVenue('v4', 52.37, 4.90)];
-  const emptyFc: FeatureCollection<Polygon> = { type: 'FeatureCollection', features: [] };
-  const classified = classifyVenues(venues, emptyFc, true);
+  it('classifies all terrace venues as sunny when there are no buildings', () => {
+    const venues = [mkVenue('v4', 52.37, 4.90)];
+    const emptyFc: FeatureCollection<Polygon> = { type: 'FeatureCollection', features: [] };
+    const classified = classifyVenues(venues, emptyFc, true);
 
-  console.assert(classified[0].status === 'sunny',
-    `Expected sunny with no buildings, got ${classified[0].status}`);
-  console.log('PASS test_noBuildings_allSunny');
-}
-
-// Run all (node --experimental-vm-modules / vitest / jest)
-test_venueInShadowIsShaded();
-test_venueOutsideShadowIsSunny();
-test_sunBelowHorizonAllNight();
-test_noBuildings_allSunny();
+    expect(classified[0].status).toBe('sunny');
+  });
+});
