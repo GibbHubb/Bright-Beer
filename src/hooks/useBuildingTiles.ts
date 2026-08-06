@@ -55,17 +55,35 @@ async function loadTile(row: number, col: number): Promise<Feature<Polygon>[]> {
 
 const MIN_TILE_ZOOM = 13; // no shadows below this zoom → skip tile load entirely
 
+/** Stable empty result — a fresh [] each render would re-trigger useShadows. */
+const NO_BUILDINGS: Feature<Polygon>[] = [];
+
 export function useBuildingTiles(bounds: MapBounds | null, zoom = 14): Feature<Polygon>[] {
   const [buildings, setBuildings] = useState<Feature<Polygon>[]>([]);
   // Track which tile keys are currently loaded so we only re-fetch on tile change
   const loadedKeys = useRef<string>('');
 
+  // Below the shadow zoom there is nothing to draw. S31-fu2 — this is derived
+  // during render instead of being pushed into state by the effect, which is
+  // what the set-state-in-effect rule was objecting to.
+  const active = !!bounds && zoom >= MIN_TILE_ZOOM;
+
+  // Round bounds to 2dp so minor pan jitter doesn't re-trigger. Extracted to
+  // named values so the dependency array holds simple expressions the linter
+  // can check statically.
+  const north = bounds ? Math.round(bounds.north * 100) : null;
+  const south = bounds ? Math.round(bounds.south * 100) : null;
+  const east  = bounds ? Math.round(bounds.east  * 100) : null;
+  const west  = bounds ? Math.round(bounds.west  * 100) : null;
+
   useEffect(() => {
-    // S31-fu1 — clearing tiles below the shadow zoom is a state reset driven
-    // by props; the rule-clean form derives it during render instead. Behaviour
-    // left as-is deliberately. Tracked as S31-fu2.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (!bounds || zoom < MIN_TILE_ZOOM) { setBuildings([]); return; }
+    if (!active || !bounds) {
+      // Forget what was loaded so re-entering the zoom range refetches rather
+      // than short-circuiting on a stale key. A ref write is not state, so it
+      // does not cascade a render.
+      loadedKeys.current = '';
+      return;
+    }
 
     const tiles = overlappingTiles(bounds);
     const key = tiles.map(([r, c]) => `${r}_${c}`).sort().join(',');
@@ -79,13 +97,10 @@ export function useBuildingTiles(bounds: MapBounds | null, zoom = 14): Feature<P
     });
 
     return () => { cancelled = true; };
-  }, [
-    // Round bounds to 2dp so minor pan jitter doesn't re-trigger
-    bounds ? Math.round(bounds.north * 100) : null,
-    bounds ? Math.round(bounds.south * 100) : null,
-    bounds ? Math.round(bounds.east  * 100) : null,
-    bounds ? Math.round(bounds.west  * 100) : null,
-  ]);
+    // `bounds` is represented by the four rounded values above; depending on
+    // the object itself would refire on every pan frame.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, north, south, east, west]);
 
-  return buildings;
+  return active ? buildings : NO_BUILDINGS;
 }

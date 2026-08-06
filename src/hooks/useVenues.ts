@@ -35,25 +35,56 @@ async function loadVenues(city?: City): Promise<Venue[]> {
   }
 }
 
+/** Distinct from every real city id (including `undefined`, the Amsterdam
+ *  legacy path), so the first render always reads as "not loaded yet". */
+const UNLOADED = Symbol('unloaded');
+
+interface VenuesState {
+  /** Which city the venues/error below belong to. */
+  loadedFor: string | undefined | typeof UNLOADED;
+  venues: Venue[];
+  error: string | null;
+}
+
 export function useVenues(city?: City) {
-  const [venues,  setVenues]  = useState<Venue[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState<string | null>(null);
+  const requestedId = city?.id;
+  const [state, setState] = useState<VenuesState>({
+    loadedFor: UNLOADED,
+    venues: [],
+    error: null,
+  });
 
   useEffect(() => {
-    // S31-fu1 — react-hooks/set-state-in-effect flags this reset-then-fetch
-    // shape. Removing it means deriving `loading` from whether the loaded
-    // city matches the requested one, which is a real rework of this hook's
-    // state machine; suppressed rather than changed blind. Tracked as S31-fu2.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLoading(true);
-    setError(null);
+    // S31-fu2 — no setState before the await. `loading` is derived below from
+    // whether the settled result belongs to the city currently being asked
+    // for, which is the same signal `setLoading(true)` used to encode, minus
+    // the cascading render the rule objects to.
+    let cancelled = false;
     loadVenues(city)
-      .then(setVenues)
-      .catch((e) => setError(e.message || 'Failed to load venues'))
-      .finally(() => setLoading(false));
-    // Re-fetch on city change.
-  }, [city?.id]);
+      .then((venues) => {
+        if (!cancelled) setState({ loadedFor: requestedId, venues, error: null });
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setState({
+            loadedFor: requestedId,
+            venues: [],
+            error: e?.message || 'Failed to load venues',
+          });
+        }
+      });
+    // Also fixes a latent race: switching city A -> B quickly could land A's
+    // slower response after B's and show the wrong city's venues.
+    return () => { cancelled = true; };
+    // `city` is identified by its id here; depending on the object itself
+    // would refetch on every parent render that rebuilds it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedId]);
 
-  return { venues, loading, error };
+  const loading = state.loadedFor !== requestedId;
+
+  // Deliberately keeps the previous city's venues visible while the next set
+  // loads, and hides a stale error — exactly what setVenues-on-success plus
+  // setError(null)-on-start used to do.
+  return { venues: state.venues, loading, error: loading ? null : state.error };
 }

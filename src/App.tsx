@@ -89,11 +89,17 @@ export default function App() {
   // consumer (currently none) sees the new origin.
   useEffect(() => { setSunReferencePoint(city.center); }, [city.center]);
   // Neighbourhood ids are city-scoped; clear on city change.
-  // S31-fu1 — classic reset-on-prop-change. React's sanctioned replacement is
-  // adjusting state during render against a prevCityId, which changes *when*
-  // the reset lands (render vs commit). Not changed blind. Tracked as S31-fu2.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { setNeighbourhoodId(null); setSelected(null); }, [city.id]);
+  // S31-fu2 — React's sanctioned "adjust state during render" pattern rather
+  // than an effect. React re-renders this component immediately, before
+  // committing to the DOM and before any child renders, so the stale
+  // neighbourhood/selection are never painted. The effect version cleared
+  // them one commit later, which could flash another city's selection.
+  const [prevCityId, setPrevCityId] = useState(city.id);
+  if (prevCityId !== city.id) {
+    setPrevCityId(city.id);
+    setNeighbourhoodId(null);
+    setSelected(null);
+  }
 
   const sunPosition                           = useSunPosition(date);
   const debugMode                             = useDebugFlag();
@@ -173,19 +179,20 @@ export default function App() {
     [venues, buildings, dateStr, center],
   );
 
-  // S4 — open venue popup from URL param when venues first load
-  useEffect(() => {
-    if (!venueIdFromUrl || !venues.length) return;
+  // S4 — open venue popup from URL param when venues first load.
+  // S31-fu2 — render-time adjustment, and explicitly one-shot. The effect
+  // version re-ran on every `venues` change, so switching city re-selected
+  // the URL's venue even though it belongs to a different city; the
+  // `urlVenueApplied` latch makes it fire exactly once as intended.
+  const [urlVenueApplied, setUrlVenueApplied] = useState(false);
+  if (!urlVenueApplied && venueIdFromUrl && venues.length) {
+    setUrlVenueApplied(true);
     const match = venues.find((v) => v.id === venueIdFromUrl);
     if (match) {
-      // S31-fu1 — one-shot sync from a URL param once venues arrive. Genuinely
-      // external-input driven, so the effect is defensible; the rule cannot
-      // tell that apart. Tracked as S31-fu2.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelected(match);
       setCenter([match.lng, match.lat]);
     }
-  }, [venues, venueIdFromUrl]);
+  }
 
   // S8 — sync neighbourhood to URL (?hood=<id>) without reloading
   useEffect(() => {
