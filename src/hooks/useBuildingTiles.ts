@@ -61,6 +61,10 @@ export function useBuildingTiles(bounds: MapBounds | null, zoom = 14): Feature<P
   const loadedKeys = useRef<string>('');
 
   useEffect(() => {
+    // S31-fu1 — clearing tiles below the shadow zoom is a state reset driven
+    // by props; the rule-clean form derives it during render instead. Behaviour
+    // left as-is deliberately. Tracked as S31-fu2.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!bounds || zoom < MIN_TILE_ZOOM) { setBuildings([]); return; }
 
     const tiles = overlappingTiles(bounds);

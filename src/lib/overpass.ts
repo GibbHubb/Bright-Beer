@@ -127,7 +127,7 @@ export async function fetchVenues(city?: City): Promise<Venue[]> {
       const cached = JSON.parse(raw);
       if (Date.now() - cached.ts < CACHE_TTL_MS) return cached.venues;
     }
-  } catch (_) {}
+  } catch { /* unreadable/!JSON cache entry — treat as a miss */ }
 
   // 2. Try live Overpass.
   let json: { elements: Record<string, unknown>[] } | null = null;
@@ -141,14 +141,14 @@ export async function fetchVenues(city?: City): Promise<Venue[]> {
       if (!res.ok) continue;
       json = await res.json();
       break;
-    } catch (_) { /* try next */ }
+    } catch { /* try next */ }
   }
 
   if (json) {
     const venues: Venue[] = json.elements
       .map(parseElement)
       .filter((v): v is Venue => v !== null);
-    try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), venues })); } catch (_) {}
+    try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), venues })); } catch { /* quota/private mode — caching is best-effort */ }
     return venues;
   }
 

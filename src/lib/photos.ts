@@ -116,7 +116,7 @@ function demoRead(venueId: string): PhotoRecord[] {
 function demoWrite(venueId: string, list: PhotoRecord[]): void {
   try {
     localStorage.setItem(demoKey(venueId), JSON.stringify(list));
-  } catch (e) {
+  } catch {
     // QuotaExceeded — silently drop the oldest until it fits.
     while (list.length > 1) {
       list.shift();

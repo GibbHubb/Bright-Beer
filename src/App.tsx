@@ -89,6 +89,10 @@ export default function App() {
   // consumer (currently none) sees the new origin.
   useEffect(() => { setSunReferencePoint(city.center); }, [city.center]);
   // Neighbourhood ids are city-scoped; clear on city change.
+  // S31-fu1 — classic reset-on-prop-change. React's sanctioned replacement is
+  // adjusting state during render against a prevCityId, which changes *when*
+  // the reset lands (render vs commit). Not changed blind. Tracked as S31-fu2.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setNeighbourhoodId(null); setSelected(null); }, [city.id]);
 
   const sunPosition                           = useSunPosition(date);
@@ -174,6 +178,10 @@ export default function App() {
     if (!venueIdFromUrl || !venues.length) return;
     const match = venues.find((v) => v.id === venueIdFromUrl);
     if (match) {
+      // S31-fu1 — one-shot sync from a URL param once venues arrive. Genuinely
+      // external-input driven, so the effect is defensible; the rule cannot
+      // tell that apart. Tracked as S31-fu2.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelected(match);
       setCenter([match.lng, match.lat]);
     }

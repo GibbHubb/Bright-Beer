@@ -16,7 +16,7 @@ async function loadVenues(city?: City): Promise<Venue[]> {
           return data.venues as Venue[];
         }
       }
-    } catch (_) {}
+    } catch { /* static file unreachable — fall through to live Overpass */ }
   }
 
   // 2. Try live Overpass (with its own 24 h TTL cache and S30 durable-fallback
@@ -41,6 +41,11 @@ export function useVenues(city?: City) {
   const [error,   setError]   = useState<string | null>(null);
 
   useEffect(() => {
+    // S31-fu1 — react-hooks/set-state-in-effect flags this reset-then-fetch
+    // shape. Removing it means deriving `loading` from whether the loaded
+    // city matches the requested one, which is a real rework of this hook's
+    // state machine; suppressed rather than changed blind. Tracked as S31-fu2.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     setError(null);
     loadVenues(city)
