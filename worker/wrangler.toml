@@ -1,0 +1,36 @@
+name = "bright-beer-photos"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+
+# ── R2: the photo objects ────────────────────────────────────────────────────
+# Create with:  wrangler r2 bucket create bright-beer-photos
+[[r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "bright-beer-photos"
+
+# ── KV: photo metadata + the per-venue index + rate-limit counters ───────────
+# Create with:  wrangler kv namespace create PHOTO_META
+# then paste the returned id below.
+[[kv_namespaces]]
+binding = "PHOTO_META"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+[vars]
+# Browser origins allowed to call this worker. The GitHub Pages URL must be
+# here or every upload fails CORS — and it will fail ONLY in the browser,
+# never in curl.
+ALLOWED_ORIGINS = "https://gibbhubb.github.io,http://localhost:5173"
+
+# Where objects are publicly served from. Either an R2 custom domain or the
+# bucket's r2.dev subdomain (enable public access on the bucket first).
+PUBLIC_BASE_URL = "https://pub-REPLACE.r2.dev"
+
+# Your Cloudflare account id — `wrangler whoami` prints it.
+R2_ACCOUNT_ID = "REPLACE_WITH_ACCOUNT_ID"
+R2_BUCKET = "bright-beer-photos"
+
+# ── Secrets — NEVER put these in this file ───────────────────────────────────
+#   wrangler secret put R2_ACCESS_KEY_ID
+#   wrangler secret put R2_SECRET_ACCESS_KEY
+# Create the pair under R2 -> Manage R2 API Tokens (Object Read & Write,
+# scoped to the bright-beer-photos bucket only).
