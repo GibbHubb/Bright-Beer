@@ -28,6 +28,10 @@ const SESSION_KEY = 'bright-beer-session-id-v1';
 const MAX_BYTES = 8 * 1024 * 1024;
 const MAX_DIM   = 4000;
 const THUMB_MAX = 320;
+// S33(b) — the long edge an uploaded photo is re-encoded to before it leaves
+// the browser. 2048 is well above what the gallery or lightbox ever displays.
+const UPLOAD_MAX_DIM = 2048;
+const UPLOAD_QUALITY = 0.85;
 const ALLOWED   = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const DAILY_CAP = 5;   // per venue per session per day
 
@@ -100,6 +104,43 @@ async function toThumbDataUrl(bitmap: ImageBitmap): Promise<string> {
   return canvas.toDataURL('image/jpeg', 0.78);
 }
 
+/**
+ * Re-encode a photo through a canvas before it is uploaded.
+ *
+ * S33(b) — EXIF stripping, and it is a privacy fix rather than an optimisation:
+ * a phone photo of a venue can carry the uploader's GPS coordinates, and these
+ * objects are served publicly. A canvas only ever holds decoded pixels, so
+ * anything the encoder writes out has no EXIF, no GPS and no device metadata.
+ *
+ * ⚠️ This closes a real hole rather than tightening an existing guard. The demo
+ * path downscaled through `toThumbDataUrl` and was therefore always clean, but
+ * WORKER mode used to `PUT` the original `File` untouched — so every photo
+ * uploaded through the deployed path went to R2 with its metadata intact. The
+ * S33 note's "the client downscales before upload" was true only of demo mode.
+ *
+ * Capping the long edge is a deliberate side benefit — it is the cheap half of
+ * S33(a), and needs no Cloudflare Images subscription and no worker change.
+ */
+async function toUploadBlob(
+  bitmap: ImageBitmap,
+): Promise<{ blob: Blob; width: number; height: number }> {
+  const scale = Math.min(1, UPLOAD_MAX_DIM / Math.max(bitmap.width, bitmap.height));
+  const width = Math.round(bitmap.width * scale);
+  const height = Math.round(bitmap.height * scale);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width; canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new PhotoUploadError('network', 'Canvas unavailable.');
+  ctx.drawImage(bitmap, 0, 0, width, height);
+
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, 'image/jpeg', UPLOAD_QUALITY),
+  );
+  if (!blob) throw new PhotoUploadError('network', 'Could not process the image.');
+  return { blob, width, height };
+}
+
 // ── demo mode storage ──────────────────────────────────────────────────────
 
 function demoKey(venueId: string): string { return DEMO_KEY_PREFIX + venueId; }
@@ -141,7 +182,9 @@ export async function listPhotos(venueId: string): Promise<PhotoRecord[]> {
 
 export async function uploadPhoto(venueId: string, file: File): Promise<PhotoRecord> {
   validateFile(file);
-  const { width, height, bitmap } = await readImageDims(file);
+  // Natural dimensions are validated inside readImageDims; the values that get
+  // recorded come from the re-encoded blob further down, not from the original.
+  const { bitmap } = await readImageDims(file);
   if (!checkAndBumpRateLimit(venueId)) {
     bitmap.close();
     throw new PhotoUploadError('rate_limit', `You can only upload ${DAILY_CAP} photos per venue per day.`);
@@ -160,27 +203,34 @@ export async function uploadPhoto(venueId: string, file: File): Promise<PhotoRec
     return record;
   }
 
-  // Worker mode: presign → PUT → complete
+  // Worker mode: sanitise → presign → PUT → complete.
+  // S33(b): the ORIGINAL file is never uploaded. Everything below describes the
+  // re-encoded blob — its type, its byte length and its dimensions — because
+  // that is what actually lands in R2. Presigning with the original's numbers
+  // would fail the worker's own content-length check.
+  const { blob: upload, width: uploadWidth, height: uploadHeight } =
+    await toUploadBlob(bitmap);
   bitmap.close();
+
   const presign = await fetch(`${WORKER_URL}/venues/${venueId}/photos/presign`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Session-Id': getSessionId() },
-    body: JSON.stringify({ contentType: file.type, contentLength: file.size }),
+    body: JSON.stringify({ contentType: upload.type, contentLength: upload.size }),
   });
   if (!presign.ok) throw new PhotoUploadError('network', `Presign failed (HTTP ${presign.status})`);
   const { uploadUrl, key } = await presign.json() as { uploadUrl: string; key: string };
 
   const putRes = await fetch(uploadUrl, {
     method: 'PUT',
-    headers: { 'Content-Type': file.type },
-    body: file,
+    headers: { 'Content-Type': upload.type },
+    body: upload,
   });
   if (!putRes.ok) throw new PhotoUploadError('network', `Upload failed (HTTP ${putRes.status})`);
 
   const complete = await fetch(`${WORKER_URL}/photos/complete`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Session-Id': getSessionId() },
-    body: JSON.stringify({ venueId, key, width, height }),
+    body: JSON.stringify({ venueId, key, width: uploadWidth, height: uploadHeight }),
   });
   if (!complete.ok) throw new PhotoUploadError('network', `Finalise failed (HTTP ${complete.status})`);
   return (await complete.json()) as PhotoRecord;
